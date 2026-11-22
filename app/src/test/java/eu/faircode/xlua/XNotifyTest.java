@@ -42,6 +42,8 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 
@@ -409,5 +411,38 @@ public class XNotifyTest {
         assertEquals(List.of(SETTINGS), framework.made);
         assertThrows(NullPointerException.class, () -> XNotify.cancelApp(framework, 0, 10123));
         assertEquals(List.of(SETTINGS, SETTINGS), framework.made);
+    }
+
+    // The notification of an app is updated at most each MIN_INTERVAL per tag, so an app which reports in a loop, or a hook
+    // which notifies on each use, does not keep the notification service busy; other tags and apps are not held back
+    @Test
+    public void notificationsOfAnAppAreLimitedPerTag() {
+        java.util.Map<String, Long> updated = new java.util.HashMap<>();
+        long now = 100000;
+        assertTrue(XNotify.due(updated, "0:10123:xlua_use_Get.Location", now));
+        assertFalse(XNotify.due(updated, "0:10123:xlua_use_Get.Location", now + 1));
+        assertFalse(XNotify.due(updated, "0:10123:xlua_use_Get.Location", now + XNotify.MIN_INTERVAL - 1));
+        assertTrue(XNotify.due(updated, "0:10123:xlua_use_Read.Network", now + 1));
+        assertTrue(XNotify.due(updated, "0:10124:xlua_use_Get.Location", now + 1));
+        assertTrue(XNotify.due(updated, "10:10123:xlua_use_Get.Location", now + 1));
+        assertTrue(XNotify.due(updated, "0:10123:xlua_use_Get.Location", now + XNotify.MIN_INTERVAL));
+        assertFalse(XNotify.due(updated, "0:10123:xlua_use_Get.Location", now + XNotify.MIN_INTERVAL + 1));
+        // A loop of 10,000 reports in 30 seconds updates it a few times, not 10,000
+        int updates = 0;
+        for (int i = 0; i < 10000; i++)
+            if (XNotify.due(updated, "0:10200:xlua_exception", now + i * 3L))
+                updates++;
+        assertEquals(6, updates);
+        // A clock which went back does not hold it back until it catches up
+        assertTrue(XNotify.due(updated, "0:10200:xlua_exception", 5));
+    }
+
+    // The table does not grow without limit
+    @Test
+    public void trackedNotificationsAreBounded() {
+        java.util.Map<String, Long> updated = new java.util.HashMap<>();
+        for (int i = 0; i < 3 * XNotify.MAX_TRACKED; i++)
+            XNotify.due(updated, "0:" + i + ":xlua_exception", 1000);
+        assertTrue(updated.size() <= XNotify.MAX_TRACKED + 1);
     }
 }

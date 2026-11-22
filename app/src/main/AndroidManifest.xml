@@ -37,7 +37,10 @@
 
         <!-- The libxposed service delivers its binder through a provider with this authority. The one of the library
              takes it from any app, so ScopeProvider replaces it. Doppel's UI runs after unlock, so it need not start
-             before, which would run ApplicationEx before credential storage -->
+             before, which would run ApplicationEx before credential storage. Not exported: the framework delivers as root
+             or as system, which the activity manager lets reach any provider (ActivityManager.checkComponentPermission),
+             and it refuses every other app before it starts the process of the provider (ContentProviderHelper
+             .getContentProviderImpl, ActivityManagerService before Android 12), so no app starts Doppel through it -->
         <provider
             android:name="io.github.libxposed.service.XposedProvider"
             android:authorities="${applicationId}.XposedService"
@@ -46,8 +49,7 @@
             android:name=".ScopeProvider"
             android:authorities="${applicationId}.XposedService"
             android:directBootAware="false"
-            android:exported="true"
-            tools:ignore="ExportedContentProvider" />
+            android:exported="false" />
 
         <activity
             android:name=".ActivityMain"

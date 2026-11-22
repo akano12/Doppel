@@ -32,7 +32,19 @@ import io.github.libxposed.service.XposedProvider;
 
 // In place of the provider of the libxposed service library (see the manifest), through which the framework delivers
 // its service, see Scope. The library takes a service from any app, which would then answer for the framework: whether
-// an app is in scope, and the apps the user adds. The framework delivers it as root or as system.
+// an app is in scope, and the apps the user adds. The framework delivers it as root or as system, which also reach the
+// provider where it is not exported (see the manifest), so no other app can open it, by call, query or insert, and the
+// activity manager refuses them before it starts the process of Doppel.
+// ContentResolver.getType is the exception, on all versions: for an app of the user asked for the activity manager clears
+// the identity of the caller and looks the provider up as the system (ActivityManagerService.getProviderMimeType up to
+// Android 11, ContentProviderHelper.getMimeTypeFilterAsync from Android 12, which are the same), which is let through
+// whatever the manifest says, and starts the process; the permission and visibility of the caller are checked after that.
+// No manifest setting stops it, so getType answers null like for an authority which does not exist, and the other methods
+// nothing: an app learns nothing from the answers. Other apps cannot see the process of another app on Android 9 and
+// later; they can measure the call, which takes longer when a process is started, which is not measured.
+// shortcut: an app can still tell by the time of getType that Doppel is installed; the engine answers it for its restricted
+// apps without the call (provider_hidden.lua), but only for a provider the package manager finds for the app, which an app
+// that cannot see Doppel does not; upgrade to answering this authority there whatever the package manager finds.
 public class ScopeProvider extends ContentProvider {
     private static final String TAG = "XLua.ScopeProvider";
 

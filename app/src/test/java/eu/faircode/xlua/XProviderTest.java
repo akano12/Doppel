@@ -42,16 +42,34 @@ import java.util.function.Function;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-// What hooked apps may ask the service without the permission of the app, see XProvider.APP_CALLS
+// What hooked apps may ask the service without the permission of the app, see XProvider.POLICIES
 public class XProviderTest {
-    // A method added here can give any hooked app the data of other apps, like getAllSettings the fake values
+    private static Set<String> methods(boolean query, boolean app) {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, XProvider.Policy> entry : XProvider.POLICIES.entrySet())
+            if (entry.getValue().isQuery() == query && (!app || entry.getValue().app))
+                result.add(entry.getKey());
+        return result;
+    }
+
+    // A method added as one for apps can give any hooked app the data of other apps, like getAllSettings the fake values
     // set for each app: it must check the caller itself, like the ones listed do
     @Test
     public void hookedAppsAskForThemselvesOnly() {
-        assertEquals(Collections.singleton("reports"), XProvider.APP_CALLS);
-        assertEquals(new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues")),
-                XProvider.APP_QUERIES);
+        assertEquals(Collections.singleton("reports"), methods(false, true));
+        assertEquals(new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues", "getServiceVersion")),
+                methods(true, true));
+    }
+
+    // Each method of apps acts for the user of its caller or of the uid it is about, which each checks (ownUid)
+    @Test
+    public void methodsOfAppsActForTheUserOfTheCallerOrOfTheirUid() {
+        for (String method : methods(true, true))
+            assertTrue(method, XProvider.POLICIES.get(method).acts == XProvider.Acts.UID ||
+                    XProvider.POLICIES.get(method).acts == XProvider.Acts.CALLER);
+        assertTrue(XProvider.POLICIES.get("reports").acts == XProvider.Acts.CALLER);
     }
 
     // The app of a secondary user acts for its own user only; system server, like ReceiverPackage, for any user
@@ -67,15 +85,238 @@ public class XProviderTest {
         assertTrue(XProvider.forOwnUser(system, "putHook", 0, 0, false));
         assertTrue(XProvider.forOwnUser(owner, "clearData", 0, 0, false));
 
-        for (String method : XProvider.USER_CALLS)
-            assertFalse(method, XProvider.forOwnUser(secondary, method, 0, 0, false));
-        for (String method : XProvider.UID_CALLS)
-            assertFalse(method, XProvider.forOwnUser(secondary, method, 10, Util.getUserUid(0, 10200), false));
+        for (Map.Entry<String, XProvider.Policy> entry : XProvider.POLICIES.entrySet()) {
+            String method = entry.getKey();
+            if (entry.getValue().acts == XProvider.Acts.USER)
+                assertFalse(method, XProvider.forOwnUser(secondary, method, 0, 0, false));
+            if (entry.getValue().acts == XProvider.Acts.UID)
+                assertFalse(method, XProvider.forOwnUser(secondary, method, 10, Util.getUserUid(0, 10200), false));
+            // System server acts for any user, whatever the method
+            assertTrue(method, XProvider.forOwnUser(system, method, 0, 0, true));
+        }
         assertFalse(XProvider.forOwnUser(secondary, "clearData", 10, 0, true));
         assertFalse(XProvider.forOwnUser(owner, "clearData", 0, 0, true));
 
         assertTrue(XProvider.forOwnUser(system, "clearData", 0, 0, true));
         assertTrue(XProvider.forOwnUser(android.os.Process.SYSTEM_UID, "initApp", 0, Util.getUserUid(10, 10200), false));
+    }
+
+    // A method which is not in the table is refused for every caller, also for system server, so a method added to the
+    // service without a rule for its user is never run with none
+    @Test
+    public void unknownMethodsFailClosed() {
+        int system = android.os.Process.SYSTEM_UID;
+        for (String method : new String[]{"unknown", "", "getVersion", "xlua", "putSettings2", null}) {
+            assertFalse(String.valueOf(method), XProvider.forOwnUser(system, method, 0, 0, false));
+            assertFalse(String.valueOf(method), XProvider.forOwnUser(10123, method, 0, 0, false));
+            for (boolean query : new boolean[]{false, true}) {
+                try {
+                    XProvider.policy(query, method, true, system);
+                    fail(method);
+                } catch (IllegalArgumentException expected) {
+                }
+                // Apps get the error of a method which is not theirs, so they cannot tell the unknown ones
+                try {
+                    XProvider.policy(query, method, false, 10123);
+                    fail(method);
+                } catch (SecurityException expected) {
+                }
+            }
+        }
+    }
+
+    // The dispatch of calls and queries: a call is not a query, apps get their own methods only, the permitted get all
+    @Test
+    public void dispatchByCallerAndKind() {
+        int system = android.os.Process.SYSTEM_UID;
+        int app = 10123;
+        for (Map.Entry<String, XProvider.Policy> entry : XProvider.POLICIES.entrySet()) {
+            String method = entry.getKey();
+            boolean query = entry.getValue().isQuery();
+            assertEquals(method, entry.getValue(), XProvider.policy(query, method, true, system));
+            // The other kind of the same name is no method
+            try {
+                XProvider.policy(!query, method, true, system);
+                fail(method);
+            } catch (IllegalArgumentException expected) {
+            }
+            if (entry.getValue().app)
+                assertEquals(method, entry.getValue(), XProvider.policy(query, method, false, app));
+            else
+                try {
+                    XProvider.policy(query, method, false, app);
+                    fail(method);
+                } catch (SecurityException expected) {
+                }
+        }
+        // Definitions, assignments and the data of other apps are for the permitted only
+        for (String method : new String[]{"putHook", "assignHooks", "putScope", "putSetting", "putSettings", "clearData"})
+            assertFalse(method, XProvider.POLICIES.get(method).app);
+        for (String method : new String[]{"getHooks2", "getApps2", "getAssignments", "getAllSettings", "getLog"})
+            assertFalse(method, XProvider.POLICIES.get(method).app);
+    }
+
+    // The tier of a caller: system server and the app are permitted, an app without assignments gets the answer of a device
+    // without Doppel, an app with assignments is answered when it is in the scope its manager told, or when none was told
+    @Test
+    public void tierOfACaller() throws Throwable {
+        int uid = 10123;
+        String[] packages = {"assigned.app"};
+        Map<Integer, Set<String>> synced = Collections.singletonMap(0, new HashSet<>(Arrays.asList("assigned.app", "system")));
+        XProvider.Check yes = () -> true;
+        XProvider.Check no = () -> false;
+        XProvider.Check unused = () -> {
+            throw new AssertionError("Assignments looked up");
+        };
+
+        assertEquals(XProvider.CALLER_PERMITTED, XProvider.caller(1000, null, true, synced, unused));
+        assertEquals(XProvider.CALLER_ASSIGNED, XProvider.caller(uid, packages, false, synced, yes));
+        assertEquals(XProvider.CALLER_NONE, XProvider.caller(uid, packages, false, synced, no));
+        assertEquals(XProvider.CALLER_NONE, XProvider.caller(uid, null, false, synced, unused));
+        assertEquals(XProvider.CALLER_NONE, XProvider.caller(uid, new String[0], false, synced, unused));
+
+        // Outside the scope the assignments do not count, and are not looked up
+        assertEquals(XProvider.CALLER_NONE, XProvider.caller(uid, new String[]{"outside.app"}, false, synced, unused));
+        // A shared uid is answered when any of its packages is in the scope
+        assertEquals(XProvider.CALLER_ASSIGNED,
+                XProvider.caller(uid, new String[]{"outside.app", "assigned.app"}, false, synced, yes));
+        // Another user has its own scope; one whose manager told none is answered as before
+        assertEquals(XProvider.CALLER_ASSIGNED,
+                XProvider.caller(Util.getUserUid(10, uid), new String[]{"outside.app"}, false, synced, yes));
+        assertEquals(XProvider.CALLER_NONE,
+                XProvider.caller(Util.getUserUid(10, uid), new String[]{"outside.app"}, false,
+                        Collections.singletonMap(10, new HashSet<>()), unused));
+        assertEquals(XProvider.CALLER_ASSIGNED, XProvider.caller(uid, new String[]{"outside.app"}, false, null, yes));
+        assertEquals(XProvider.CALLER_ASSIGNED,
+                XProvider.caller(uid, new String[]{"outside.app"}, false, new HashMap<>(), yes));
+        // A scope which is told empty answers none
+        assertFalse(XProvider.inScope(Collections.singletonMap(0, new HashSet<>()), 0, packages));
+    }
+
+    // An app with assignments asks about itself: its own uid and packages, nobody else's, also not of its other users
+    @Test
+    public void appsAskAboutThemselvesOnly() {
+        int uid = 10123;
+        java.util.function.IntFunction<String[]> packages =
+                u -> (u == uid ? new String[]{"own.app", "shared.app"} : new String[]{"other.app"});
+        for (String method : methods(true, true)) {
+            if (XProvider.POLICIES.get(method).acts != XProvider.Acts.UID)
+                continue;
+            assertEquals(method, uid, XProvider.ownUid(uid, method, new String[]{"own.app", Integer.toString(uid)}, false, packages));
+            assertEquals(method, uid, XProvider.ownUid(uid, method, new String[]{"shared.app", Integer.toString(uid)}, false, packages));
+            // Another package, another uid, the same package of another user
+            for (String[] selection : new String[][]{{"other.app", Integer.toString(uid)}, {"other.app", "10124"},
+                    {"own.app", "10124"}, {"own.app", Integer.toString(Util.getUserUid(10, uid))}}) {
+                try {
+                    XProvider.ownUid(uid, method, selection, false, packages);
+                    fail(method + " " + Arrays.toString(selection));
+                } catch (SecurityException expected) {
+                }
+            }
+            for (String[] selection : new String[][]{null, {}, {"own.app"}, {"own.app", Integer.toString(uid), "x"}}) {
+                try {
+                    XProvider.ownUid(uid, method, selection, false, packages);
+                    fail(method);
+                } catch (IllegalArgumentException expected) {
+                }
+            }
+        }
+        // The app and system server ask about any app of their user, not of another user
+        assertEquals(10124, XProvider.ownUid(uid, "getBootValues", new String[]{"other.app", "10124"}, true, packages));
+        assertEquals(10124, XProvider.ownUid(1000, "getAssignments", new String[]{"other.app", "10124"}, true, packages));
+        try {
+            XProvider.ownUid(uid, "getBootValues", new String[]{"other.app", Integer.toString(Util.getUserUid(10, 10124))}, true, packages);
+            fail();
+        } catch (SecurityException expected) {
+        }
+        assertEquals(Util.getUserUid(10, 10124), XProvider.ownUid(1000, "getAssignments",
+                new String[]{"other.app", Integer.toString(Util.getUserUid(10, 10124))}, true, packages));
+    }
+
+    // An app which sends reports in a loop is dropped, the next window starts counting again; each app counts for itself
+    @Test
+    public void reportsOfAnAppAreLimited() {
+        Map<Integer, long[]> counts = new HashMap<>();
+        long now = 1000;
+        int each = XCore.REPORTS_PER_CALL;
+        int calls = XProvider.REPORTS_PER_WINDOW / each;
+        for (int i = 0; i < calls; i++)
+            assertTrue("Call " + i, XProvider.allowsReports(counts, 10123, each, now + i));
+        assertFalse(XProvider.allowsReports(counts, 10123, each, now + calls));
+        assertFalse(XProvider.allowsReports(counts, 10123, 1, now + XProvider.REPORT_WINDOW - 1));
+        // Other apps are not affected, nor is the app in the next window
+        assertTrue(XProvider.allowsReports(counts, 10124, each, now + calls));
+        assertTrue(XProvider.allowsReports(counts, 10123, each, now + XProvider.REPORT_WINDOW));
+        // A clock which went back starts again, rather than dropping until it catches up
+        assertTrue(XProvider.allowsReports(counts, 10123, each, 5));
+        // What hooks use in a second is far below
+        for (int i = 0; i < 100; i++)
+            assertTrue(XProvider.allowsReports(counts, 10125, 5, now + i * 1000L));
+    }
+
+    // What an app can report, as the engine sends it: an install with an error, a use which restricted or failed; a use which
+    // did not restrict would let the app clear its restrictions from the log, so it is refused, and no other event; for the
+    // app as a whole an install with the reason as text only
+    @Test
+    public void appsReportWhatTheEngineSendsOnly() {
+        // Of a hook: event, error, restricted, text
+        assertTrue(XProvider.Report.accepts("A", "install", true, 0, false));
+        assertFalse(XProvider.Report.accepts("A", "install", false, 0, false));
+        assertFalse(XProvider.Report.accepts("A", "install", false, 1, false));
+        assertTrue(XProvider.Report.accepts("A", "use", false, 1, false));
+        assertTrue(XProvider.Report.accepts("A", "use", true, 0, false));
+        assertTrue(XProvider.Report.accepts("A", "use", true, 1, false));
+        // An empty use, or one which did not restrict, is the app clearing its restriction from the log
+        assertFalse(XProvider.Report.accepts("A", "use", false, 0, false));
+        assertFalse(XProvider.Report.accepts("A", "use", false, 2, false));
+        assertFalse(XProvider.Report.accepts("A", "other", true, 1, true));
+        assertFalse(XProvider.Report.accepts("A", null, true, 1, true));
+
+        assertTrue(XProvider.Report.accepts(XProvider.ENGINE_HOOK, "install", true, 0, true));
+        assertFalse(XProvider.Report.accepts(XProvider.ENGINE_HOOK, "install", true, 0, false));
+        assertFalse(XProvider.Report.accepts(XProvider.ENGINE_HOOK, "use", true, 1, true));
+        assertFalse(XProvider.Report.accepts(XProvider.ENGINE_HOOK, "other", false, 0, true));
+    }
+
+    // That an app ran without its hooks is told to the user once per app and boot, by user and package: the same package of
+    // another user is another app, a report which could not be shown is told again (the key is taken out), and an app
+    // which is removed is told about again when it is installed again
+    @Test
+    public void unhookedAppsAreToldOncePerBoot() {
+        Set<String> told = new HashSet<>();
+        assertEquals("xlua", XProvider.ENGINE_HOOK);
+        assertTrue(XProvider.firstUnhooked(told, 0, "a.app"));
+        assertFalse(XProvider.firstUnhooked(told, 0, "a.app"));
+        assertTrue(XProvider.firstUnhooked(told, 10, "a.app"));
+        assertTrue(XProvider.firstUnhooked(told, 0, "b.app"));
+        // Nor is a package of another user whose name starts like a user and a package
+        assertTrue(XProvider.firstUnhooked(told, 1, "0:a.app"));
+        assertEquals("10:a.app", XProvider.engineKey(10, "a.app"));
+        told.remove(XProvider.engineKey(0, "a.app"));
+        assertTrue(XProvider.firstUnhooked(told, 0, "a.app"));
+    }
+
+    // The cursors an app has open are limited, and counted again when it closes them, once each
+    @Test
+    public void openCursorsOfAnAppAreLimited() {
+        XProvider.OpenCursors open = new XProvider.OpenCursors(2);
+        assertTrue(open.acquire(10123));
+        assertTrue(open.acquire(10123));
+        assertFalse(open.acquire(10123));
+        assertTrue(open.acquire(10124));
+
+        android.database.Cursor first = open.track(10123, null);
+        first.close();
+        first.close();
+        assertTrue(open.acquire(10123));
+        assertFalse(open.acquire(10123));
+        open.release(10123);
+        open.release(10123);
+        assertTrue(open.acquire(10123));
+        // More releases than acquires keep none negative
+        open.release(10125);
+        open.release(10125);
+        assertTrue(open.acquire(10125));
     }
 
     // Hooked apps read the settings for all apps and the settings and fake values of their own packages only
@@ -97,7 +338,9 @@ public class XProviderTest {
     @Test
     public void hookedAppsAskAboutTheirOwnPackagesOnly() {
         String[] own = {"own.app"};
-        for (String method : XProvider.APP_QUERIES) {
+        for (String method : methods(true, true)) {
+            if (XProvider.POLICIES.get(method).acts != XProvider.Acts.UID)
+                continue;
             assertTrue(method, XProvider.mayAsk(method, "own.app", own));
             assertFalse(method, XProvider.mayAsk(method, "com.any.other", own));
             assertEquals(method, "getSettings".equals(method), XProvider.mayAsk(method, "global", own));
@@ -105,7 +348,7 @@ public class XProviderTest {
     }
 
     // Only system server, of any user, and the app get the answers which need the permission; a hooked app
-    // only those of APP_CALLS and APP_QUERIES, see XProvider.call and query. Only callers with the name of the app
+    // only those of the table which are for apps, see XProvider.call and query. Only callers with the name of the app
     // cost the lookup of their signers.
     @Test
     public void permittedCallers() {

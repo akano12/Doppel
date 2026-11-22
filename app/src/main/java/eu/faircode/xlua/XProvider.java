@@ -29,6 +29,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.database.Cursor;
+import android.database.CursorWrapper;
 import android.database.MatrixCursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
@@ -37,6 +38,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.os.StrictMode;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -55,7 +57,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 // The service in system server, called through the settings provider (see XCore.hookSettings).
@@ -81,9 +86,13 @@ class XProvider {
     // so they are read without the lock, also during database calls
     private static final Object lock = new Object();
 
-    private static XDatabase db = null;
+    // Read without the lock once it is open and loaded, see loadData
+    private static volatile XDatabase db = null;
     private static volatile Map<String, XHook> hooks = null;
     private static volatile Map<String, XHook> builtins = null;
+    private static boolean reload = false; // A database which was opened again needs its definitions and scopes again
+    // The LSPosed scope the manager of each user told the service, see putScope; a user without an entry never did
+    private static volatile Map<Integer, Set<String>> scopes = null;
     private static byte[] bootSecret = null; // See getBootSecret
     private static byte[] keptSecret = null; // See getKeptSecret
     private static volatile boolean failureNotified = false; // See loadData
@@ -105,27 +114,40 @@ class XProvider {
     private static void loadData(Context context) throws RemoteException {
         boolean loaded = false;
         try {
-            synchronized (lock) {
-                // Open again after Android deleted a corrupt database, else every call fails until a reboot;
-                // the custom definitions are gone with it
-                if (db == null || !db.isOpen()) {
-                    db = XDatabase.open();
-                    hooks = null;
+            // Once everything is loaded the calls do not wait for each other, nor for a write of a definition, which
+            // holds the lock; the reads are of volatile fields, and a reload sets reload first, under the lock
+            XDatabase current = db;
+            if (current == null || !current.isOpen() || hooks == null || reload)
+                synchronized (lock) {
+                    // Open again after Android deleted a corrupt database, else every call fails until a reboot;
+                    // the custom definitions are gone with it. The definitions of before stay until the new ones are
+                    // loaded, so a call which is running meanwhile never finds none.
+                    if (db == null || !db.isOpen()) {
+                        db = XDatabase.open();
+                        reload = true;
+                    }
+                    if (hooks == null || reload) {
+                        loadHooks(context);
+                        reload = false;
+                        loaded = true;
+                    }
                 }
-                if (hooks == null) {
-                    loadHooks(context);
-                    loaded = true;
-                }
-            }
         } catch (Throwable ex) {
             // Restricted apps get no hooks and start without them (see XCore.hookPackage), which the user has to hear
-            // about, once: every call fails the same way
+            // about, once: every call fails the same way. Every caller gets the answer of a device without Doppel then, the
+            // apps with assignments too, see XCore.answers (it cannot tell the apps with assignments of a boot with no data
+            // from the others), so the engine of a restricted app takes it for "no assignments" and does not ask again: the app
+            // keeps running without its hooks until it is started again once the data loads. Telling the engine apart would
+            // tell every app, which can ask the same, that Doppel is there, so the notification is the signal.
             if (!failureNotified) {
                 failureNotified = true;
                 failureNotified = notifyData(context, false);
             }
             throw failed(ex);
         }
+        // Loaded, so a failure later is a new one, which is notified again
+        if (failureNotified)
+            failureNotified = false;
 
         // Cleared first: calls of several threads find a corrupt database at the same time
         if (XDatabase.lost) {
@@ -212,7 +234,7 @@ class XProvider {
                     pm = Util.createContextForUser(context, userid).getPackageManager();
                     pms.put(userid, pm);
                 }
-                return Util.getApplicationInfo(pm, packageName, KNOWN_PACKAGES).uid;
+                return Util.getApplicationInfo(pm, packageName, knownPackages()).uid;
             });
             // No serial number is no such user; a user which cannot be looked up keeps its settings
             UserManager um = context.getSystemService(UserManager.class);
@@ -239,6 +261,8 @@ class XProvider {
     // removeRemovedApps and XDatabaseTest
     static void removeData(SQLiteDatabase d, List<String[]> apps, List<Integer> users) {
         for (String[] app : apps) {
+            d.delete("setting", WHERE_SETTING,
+                    new String[]{"-1", CATEGORY_ENGINE, engineKey(Util.getUserId(Integer.parseInt(app[1])), app[0])});
             d.delete("`group`", WHERE_APP, app);
             Log.i(TAG, "Removed assignments of removed app pkg=" + app[0] + " uid=" + app[1] +
                     " rows=" + d.delete("assignment", WHERE_APP, app) +
@@ -246,19 +270,22 @@ class XProvider {
                     Integer.toString(Util.getUserId(Integer.parseInt(app[1]))), app[0]}));
         }
         for (int user : users) {
+            d.delete("setting", "user = -1 AND category = ? AND name LIKE ?", new String[]{CATEGORY_ENGINE, user + ":%"});
             String[] range = getUidRange(user);
             d.delete("assignment", WHERE_USER, range);
             d.delete("`group`", WHERE_USER, range);
             Log.i(TAG, "Removed data of removed user=" + user +
-                    " settings=" + d.delete("setting", WHERE_SETTINGS, new String[]{Integer.toString(user)}));
+                    " settings=" + d.delete("setting", WHERE_SETTINGS, new String[]{Integer.toString(user)}) +
+                    " scope=" + d.delete("setting", WHERE_SETTING, new String[]{"-1", "scope", Integer.toString(user)}));
         }
     }
 
     // Also the apps removed with their data kept, like archived apps on Android 15, which keep their
     // restrictions, see ReceiverPackage.added
-    private static final long KNOWN_PACKAGES = PackageManager.MATCH_UNINSTALLED_PACKAGES |
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
-                    ? PackageManager.MATCH_ARCHIVED_PACKAGES : 0);
+    private static long knownPackages() {
+        return PackageManager.MATCH_UNINSTALLED_PACKAGES |
+                (Util.SDK >= Build.VERSION_CODES.VANILLA_ICE_CREAM ? PackageManager.MATCH_ARCHIVED_PACKAGES : 0);
+    }
 
     interface InstalledUid {
         int get(String packageName, int userid) throws Throwable;
@@ -304,110 +331,203 @@ class XProvider {
         }
     }
 
-    // What apps with assignments may call and query, for themselves only, which each method checks: their usage,
-    // their hooks, their settings and the values the service derives. Anything else would let a hooked app read or change
-    // the data of other apps, see XProviderTest.
-    static final Set<String> APP_CALLS = Collections.singleton("reports");
-    static final Set<String> APP_QUERIES = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList("getAssignedHooks2", "getSettings", "getBootValues")));
+    // For which user a method acts, see forOwnUser
+    enum Acts {
+        USER, // The user of its arguments; the app of a secondary user acts for its own user, not for all users
+        UID, // The user of the uid of its arguments
+        OWNER, // The definitions are shared by all users and run in the apps of all users, so only the owner changes them
+        CALLER // The user of the caller, which the method reads itself
+    }
+
+    private interface CallHandler {
+        Bundle run(Context context, Bundle extras) throws Throwable;
+    }
+
+    private interface QueryHandler {
+        Cursor run(Context context, String[] selection, boolean permitted) throws Throwable;
+    }
+
+    // What the service does for a method: whether apps with assignments may call it, for themselves only, which the method
+    // checks, and for which user it acts, see call, query and forOwnUser. Anything else would let a hooked app read or
+    // change the data of other apps, see XProviderTest.
+    static final class Policy {
+        final boolean app;
+        final Acts acts;
+        private final CallHandler call;
+        private final QueryHandler query;
+
+        private Policy(boolean app, Acts acts, CallHandler call, QueryHandler query) {
+            this.app = app;
+            this.acts = acts;
+            this.call = call;
+            this.query = query;
+        }
+
+        boolean isQuery() {
+            return (query != null);
+        }
+    }
+
+    // The one table of the methods: a method which is not in it is refused, for every caller. Methods ending in 2 return
+    // parcels.
+    static final Map<String, Policy> POLICIES = policies();
+
+    private static Map<String, Policy> policies() {
+        Map<String, Policy> methods = new HashMap<>();
+        // Calls
+        methods.put("putHook", new Policy(false, Acts.OWNER, XProvider::putHook, null));
+        methods.put("assignHooks", new Policy(false, Acts.UID, XProvider::assignHooks, null));
+        methods.put("assignRestricting", new Policy(false, Acts.CALLER, (c, e) -> assignRestricting(e), null));
+        methods.put("reports", new Policy(true, Acts.CALLER, XProvider::reports, null));
+        methods.put("getSetting", new Policy(false, Acts.USER, (c, e) -> getSetting(e), null));
+        methods.put("putSetting", new Policy(false, Acts.USER, (c, e) -> putSetting(e), null));
+        methods.put("putSettings", new Policy(false, Acts.USER, (c, e) -> putSettings(e), null));
+        methods.put("putScope", new Policy(false, Acts.USER, (c, e) -> putScope(e), null));
+        methods.put("initApp", new Policy(false, Acts.UID, (c, e) -> initApp(e), null));
+        methods.put("clearApp", new Policy(false, Acts.UID, (c, e) -> clearApp(e), null));
+        methods.put("clearData", new Policy(false, Acts.USER, (c, e) -> clearData(e), null));
+        methods.put("forceStop", new Policy(false, Acts.UID, (c, e) -> {
+            forceStop(c, e.getString("packageName"), Util.getUserId(e.getInt("uid")));
+            return new Bundle();
+        }, null));
+        // Queries
+        methods.put("getHooks2", new Policy(false, Acts.CALLER, null, (c, s, p) -> getHooks(s)));
+        methods.put("getBuiltinIds", new Policy(false, Acts.CALLER, null, (c, s, p) -> getBuiltinIds()));
+        methods.put("getApps2", new Policy(false, Acts.CALLER, null, (c, s, p) -> getApps(c, s)));
+        methods.put("getAssignedHooks2", new Policy(true, Acts.UID, null, XProvider::getAssignedHooks));
+        methods.put("getAssignments", new Policy(false, Acts.UID, null, XProvider::getAssignments));
+        methods.put("getSettings", new Policy(true, Acts.UID, null, XProvider::getSettings));
+        methods.put("getBootValues", new Policy(true, Acts.UID, null, XProvider::getBootValues));
+        // The version of the module this code is of, for the engine of a started app, see Data.getServiceVersion
+        methods.put("getServiceVersion", new Policy(true, Acts.CALLER, null, (c, s, p) -> getServiceVersion()));
+        methods.put("getAllSettings", new Policy(false, Acts.CALLER, null, (c, s, p) -> getAllSettings()));
+        methods.put("getLog", new Policy(false, Acts.CALLER, null, (c, s, p) -> getLog(s)));
+        return Collections.unmodifiableMap(methods);
+    }
+
+    // The policy of a call or a query: a method of the other kind and an unknown one are refused, a method which is not
+    // for apps is refused for them, with the same error as an unknown one, so they cannot tell them apart
+    static Policy policy(boolean query, String method, boolean permitted, int callingUid) {
+        Policy policy = (method == null ? null : POLICIES.get(method));
+        if (policy == null || policy.isQuery() != query || (!permitted && !policy.app)) {
+            if (!permitted)
+                throw new SecurityException("Permission error cuid=" + callingUid);
+            throw new IllegalArgumentException("method unknown");
+        }
+        return policy;
+    }
 
     // Permitted: the permission of the caller was checked already, see answers
     static Bundle call(Context context, String method, Bundle extras, boolean permitted)
             throws RemoteException, IllegalArgumentException {
         return answer(context, () -> {
-            if (!permitted && !APP_CALLS.contains(method))
-                enforcePermission(context);
+            int callingUid = Binder.getCallingUid();
+            Policy policy = policy(false, method, permitted, callingUid);
             // Each call has arguments, so the user check below is never skipped
             if (extras == null)
                 throw new IllegalArgumentException("extras missing");
-            if (!forOwnUser(Binder.getCallingUid(), method,
-                    extras.getInt("user"), extras.getInt("uid"), extras.getBoolean("all")))
-                throw new SecurityException("Other user cuid=" + Binder.getCallingUid());
-
-            switch (method) {
-                case "putHook":
-                    return putHook(context, extras);
-                case "assignHooks":
-                    return assignHooks(context, extras);
-                case "assignRestricting":
-                    return assignRestricting(extras);
-                case "reports":
-                    return reports(context, extras);
-                case "getSetting":
-                    return getSetting(extras);
-                case "putSetting":
-                    return putSetting(extras);
-                case "initApp":
-                    return initApp(extras);
-                case "clearApp":
-                    return clearApp(extras);
-                case "clearData":
-                    return clearData(extras);
-                case "forceStop":
-                    forceStop(context, extras.getString("packageName"), Util.getUserId(extras.getInt("uid")));
-                    return new Bundle();
-                default:
-                    return null;
-            }
+            if (!forOwnUser(callingUid, method, extras.getInt("user"), extras.getInt("uid"), extras.getBoolean("all")))
+                throw new SecurityException("Other user cuid=" + callingUid);
+            return policy.call.run(context, extras);
         });
     }
 
-    // The calls for a user and the calls and queries for the app of a uid, which read 0, the owner, for a missing one
-    static final Set<String> USER_CALLS = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList("getSetting", "putSetting", "clearData")));
-    static final Set<String> UID_CALLS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            "assignHooks", "initApp", "clearApp", "forceStop", "getAssignedHooks2", "getAssignments", "getSettings", "getBootValues")));
-
     // The app of a secondary user or a work profile acts for its own user only, else it could read, change and clear
     // the data of the owner, or put scripts into the apps of the owner; system server, like ReceiverPackage, acts for
-    // any user, see XProviderTest
+    // any user, see XProviderTest. A method which is not in POLICIES is refused.
     static boolean forOwnUser(int callingUid, String method, int user, int uid, boolean all) {
+        Policy policy = POLICIES.get(method);
+        if (policy == null)
+            return false;
         if (Util.getAppId(callingUid) == Process.SYSTEM_UID)
             return true;
         int own = Util.getUserId(callingUid);
-        if (USER_CALLS.contains(method))
-            return (user == own && !all);
-        if (UID_CALLS.contains(method))
-            return (Util.getUserId(uid) == own);
-        // Definitions are shared by all users and run in the apps of all users, so only the owner changes them
-        if ("putHook".equals(method))
-            return (own == 0);
-        return true;
+        switch (policy.acts) {
+            case USER:
+                return (user == own && !all);
+            case UID:
+                return (Util.getUserId(uid) == own);
+            case OWNER:
+                return (own == 0);
+            default:
+                return true;
+        }
     }
 
     // Methods ending in 2 return parcels; permitted: the permission of the caller was checked already, see answers
     static Cursor query(Context context, String method, String[] selection, boolean permitted) throws RemoteException {
-        Cursor result = answer(context, () -> {
-            if (!permitted && !APP_QUERIES.contains(method))
-                enforcePermission(context);
-
-            switch (method) {
-                case "getHooks2":
-                    return getHooks(selection);
-                case "getBuiltinIds":
-                    return getBuiltinIds();
-                case "getApps2":
-                    return getApps(context, selection);
-                case "getAssignedHooks2":
-                    return getAssignedHooks(context, selection, permitted);
-                case "getAssignments":
-                    return getAssignments(context, selection, permitted);
-                case "getSettings":
-                    return getSettings(context, selection, permitted);
-                case "getBootValues":
-                    return getBootValues(context, selection, permitted);
-                case "getAllSettings":
-                    return getAllSettings();
-                case "getLog":
-                    return getLog(selection);
-                default:
-                    return null;
+        final int callingUid = Binder.getCallingUid();
+        return answer(context, () -> {
+            Policy policy = policy(true, method, permitted, callingUid);
+            // The cursor of an app stays open in system server, with its rows and window, until the app closes it
+            if (!permitted && !openCursors.acquire(callingUid))
+                throw new SecurityException("Too many open cursors cuid=" + callingUid);
+            Cursor cursor;
+            try {
+                cursor = policy.query.run(context, selection, permitted);
+            } catch (Throwable ex) {
+                if (!permitted)
+                    openCursors.release(callingUid);
+                throw ex;
             }
+            if (cursor == null) {
+                if (!permitted)
+                    openCursors.release(callingUid);
+                return null;
+            }
+            cursor.moveToPosition(-1);
+            return (permitted ? cursor : openCursors.track(callingUid, cursor));
         });
+    }
 
-        if (result != null)
-            result.moveToPosition(-1);
-        return result;
+    // The cursors of apps which are open, by uid: all rows of a cursor which an app got are in system server, with the 2 MB
+    // window of the transfer, until the app closes it or dies, so an app which never closes them would grow system server
+    // without limit; the engine closes each query before the next, so an app has few at a time
+    static final int MAX_CURSORS = 16;
+    private static final OpenCursors openCursors = new OpenCursors(MAX_CURSORS);
+
+    static final class OpenCursors {
+        private final int max;
+        private final Map<Integer, Integer> open = new HashMap<>();
+
+        OpenCursors(int max) {
+            this.max = max;
+        }
+
+        synchronized boolean acquire(int uid) {
+            int count = open.getOrDefault(uid, 0);
+            if (count >= max)
+                return false;
+            open.put(uid, count + 1);
+            return true;
+        }
+
+        synchronized void release(int uid) {
+            int count = open.getOrDefault(uid, 0);
+            if (count <= 1)
+                open.remove(uid);
+            else
+                open.put(uid, count - 1);
+        }
+
+        // A cursor of which the close counts once, also when it is closed again
+        Cursor track(int uid, Cursor cursor) {
+            return new CursorWrapper(cursor) {
+                private boolean closed = false;
+
+                @Override
+                public void close() {
+                    boolean first;
+                    synchronized (this) {
+                        first = !closed;
+                        closed = true;
+                    }
+                    if (first)
+                        release(uid);
+                    super.close();
+                }
+            };
+        }
     }
 
     // An error of the service is logged here, the caller gets the message
@@ -518,6 +638,12 @@ class XProvider {
         return (SCRIPTS_CUSTOM.equals(only) ? !hook.isBuiltin() : only.equals(hook.getId()));
     }
 
+    private static Cursor getServiceVersion() {
+        MatrixCursor result = new MatrixCursor(new String[]{"version"});
+        result.addRow(new Object[]{BuildConfig.VERSION_CODE});
+        return result;
+    }
+
     // Ids of the built-in definitions, which custom definitions can replace, of the module version which runs
     private static Cursor getBuiltinIds() {
         MatrixCursor result = new MatrixCursor(new String[]{"id"});
@@ -549,7 +675,9 @@ class XProvider {
         }
 
         // Custom definitions; an invalid one should not disable all others
+        final Map<Integer, Set<String>> scopes = new HashMap<>();
         db.read(d -> {
+            scopes.putAll(readScopes(d));
             try (Cursor cursor = d.query("hook", new String[]{"id", "definition"}, null, null, null, null, null)) {
                 while (cursor.moveToNext())
                     try {
@@ -566,8 +694,54 @@ class XProvider {
 
         Log.i(TAG, "Loaded hook definitions hooks=" + hooks.size() + " builtins=" + builtins.size());
         XProvider.builtins = builtins;
+        XProvider.scopes = scopes;
         XProvider.hooks = hooks;
     }
+
+    // The scopes the managers told, in the settings of the service (user -1, like the kept secret, so no app reads them,
+    // no backup has them and clearing the data keeps them), by the user they are of
+    private static Map<Integer, Set<String>> readScopes(SQLiteDatabase d) {
+        Map<Integer, Set<String>> result = new HashMap<>();
+        try (Cursor cursor = d.query("setting", new String[]{"name", "value"}, "user = -1 AND category = 'scope'",
+                null, null, null, null)) {
+            while (cursor.moveToNext())
+                try {
+                    result.put(Integer.parseInt(cursor.getString(0)),
+                            cursor.isNull(1) ? new HashSet<>() : new HashSet<>(Util.split(cursor.getString(1))));
+                } catch (NumberFormatException ex) {
+                    Log.w(TAG, "Scope of " + cursor.getString(0) + " ignored");
+                }
+        }
+        return result;
+    }
+
+    // The LSPosed scope of the user of the caller, which its manager reads from the framework, see Scope: the packages,
+    // also none, and system for system server. Told at each start of the manager and after each change it makes, so
+    // the service can leave out the apps which are not in it, see answers; a manager of another user cannot tell it.
+    private static Bundle putScope(Bundle extras) throws Throwable {
+        final int userid = extras.getInt("user");
+        List<String> packages = extras.getStringArrayList("scope");
+        if (packages == null)
+            throw new IllegalArgumentException("scope missing");
+        final Set<String> scope = new TreeSet<>();
+        for (String packageName : packages)
+            if (packageName != null && !packageName.trim().isEmpty() && !packageName.contains(","))
+                scope.add(packageName.trim());
+        Log.i(TAG, "Put scope " + userid + " packages=" + scope.size());
+
+        // The database and the cache are changed together, see putHook
+        synchronized (lock) {
+            db.write(d -> {
+                writeSetting(d, -1, "scope", Integer.toString(userid), String.join(",", scope));
+                return null;
+            });
+            Map<Integer, Set<String>> next = new HashMap<>(scopes);
+            next.put(userid, scope);
+            scopes = next;
+        }
+        return new Bundle();
+    }
+
 
     // Built-in hooks added by an update are assigned to the apps which restrict their group,
     // like the screens of the app assign all hooks of a group
@@ -745,7 +919,7 @@ class XProvider {
     }
 
     private static List<String> readCollection(SQLiteDatabase d, int userid) {
-        return Util.parseCollection(readSetting(d, userid, "global", "collection"));
+        return Util.parseCollection(readSetting(d, userid, Data.GLOBAL, Data.COLLECTION));
     }
 
     // Apps and restrictions
@@ -782,20 +956,16 @@ class XProvider {
                         ApplicationInfo ai = pi.applicationInfo;
                         if (inSystemServerOnly(pm, ai))
                             continue;
-                        boolean persistent = ((ai.flags & ApplicationInfo.FLAG_PERSISTENT) != 0 ||
-                                "android".equals(ai.packageName));
-                        boolean system = ((ai.flags &
-                                (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
-
                         XApp app = new XApp();
                         app.uid = ai.uid;
                         app.packageName = ai.packageName;
                         app.icon = ai.icon;
                         // A label with styling is not a String
                         app.label = pm.getApplicationLabel(ai).toString();
-                        app.persistent = persistent;
-                        app.system = system;
-                        app.forceStop = (!persistent && !system);
+                        app.persistent = XApp.isPersistent(ai.flags, ai.packageName);
+                        app.system = XApp.isSystem(ai.flags);
+                        // The user's setting follows
+                        app.forceStop = XApp.stopsAutomatically(ai.flags, ai.packageName, null);
                         app.installed = pi.firstInstallTime;
                         app.assignments = new ArrayList<>();
                         apps.put(app.packageName, app);
@@ -812,7 +982,7 @@ class XProvider {
         db.read(d -> {
             // Force stop settings
             try (Cursor cursor = d.query("setting", new String[]{"category", "value"},
-                    "user = ? AND name = 'forcestop'", new String[]{Integer.toString(userid)},
+                    "user = ? AND name = '" + Data.FORCE_STOP + "'", new String[]{Integer.toString(userid)},
                     null, null, null)) {
                 while (cursor.moveToNext()) {
                     XApp app = apps.get(cursor.getString(0));
@@ -1060,7 +1230,15 @@ class XProvider {
         // which the other apps wait for when they start
         if (list.size() > XCore.REPORTS_PER_CALL)
             throw new IllegalArgumentException("too many reports");
-        final List<Report> reports = Report.all(list, Binder.getCallingUid(), hooks);
+        final int callingUid = Binder.getCallingUid();
+        // More than hooks use are dropped before they are read, like the answer of a refused call: none; system server is
+        // its own engine
+        if (Util.getAppId(callingUid) != Process.SYSTEM_UID &&
+                !allowsReports(reporters, callingUid, list.size(), SystemClock.elapsedRealtime())) {
+            Log.w(TAG, "Too many reports uid=" + callingUid);
+            return null;
+        }
+        final List<Report> reports = Report.all(list, callingUid, hooks);
 
         db.write(d -> {
             for (Report report : reports)
@@ -1079,6 +1257,46 @@ class XProvider {
         return null;
     }
 
+    // The reports an app can send: the engine sends what its hooks used once a second, each hook once, so an app which sends
+    // more than this in a window, like the thousands of reports of a loop of calls, is not telling about its hooks; its
+    // reports write to the database and notify, which keeps system server busy
+    static final int REPORTS_PER_WINDOW = 2000;
+    static final long REPORT_WINDOW = 10 * 1000L;
+    private static final Map<Integer, long[]> reporters = new HashMap<>();
+
+    // Whether an app (uid) can send a number of reports at a time of the clock (ms) which counts the window of REPORT_WINDOW
+    // it started with its first report; one entry per uid which reported, of which there are as many as apps are installed
+    static boolean allowsReports(Map<Integer, long[]> counts, int uid, int reports, long now) {
+        synchronized (counts) {
+            long[] count = counts.get(uid);
+            if (count == null || now - count[0] >= REPORT_WINDOW || now < count[0]) {
+                counts.put(uid, new long[]{now, reports});
+                return (reports <= REPORTS_PER_WINDOW);
+            }
+            count[1] += reports;
+            return (count[1] <= REPORTS_PER_WINDOW);
+        }
+    }
+
+    // The hook id of the reports the engine sends for an app as a whole, which has no hook to tell it by: that the app ran
+    // without its hooks, with the reason (the service did not answer when it started, or runs another version of the
+    // module), see XCore. It is stored in the settings of the service (user -1, category engine, name user:package), no
+    // assignment, so no screen and no backup has a hook of this name, and the user is told once per app and boot.
+    static final String ENGINE_HOOK = "xlua";
+    private static final String CATEGORY_ENGINE = "engine";
+
+    // The apps the user was told about since the boot, by user and package
+    private static final Set<String> unhooked = ConcurrentHashMap.newKeySet();
+
+    static String engineKey(int userid, String packageName) {
+        return userid + ":" + packageName;
+    }
+
+    // Whether an app is not in the set yet, and so is told about now; the next report of it is not
+    static boolean firstUnhooked(Set<String> told, int userid, String packageName) {
+        return told.add(engineKey(userid, packageName));
+    }
+
     // A report of a hook of an app, see reports
     static final class Report {
         final String hookid;
@@ -1094,7 +1312,17 @@ class XProvider {
         boolean notify = false;
         boolean restrictedUse = false;
         boolean firstError = false;
+        boolean engine = false; // The report is of an app which has hooks, that it ran without them
         Long used = null;
+
+        // Whether a report is one the engine sends: an error of the install, or a use which restricted or failed, so the app
+        // itself cannot clear its restrictions from the log with a use which did not restrict, nor send others; for the app as
+        // a whole (ENGINE_HOOK) only that it ran without its hooks, an install with the reason as text
+        static boolean accepts(String hookid, String event, boolean error, int restricted, boolean text) {
+            if (ENGINE_HOOK.equals(hookid))
+                return ("install".equals(event) && text);
+            return (("install".equals(event) && error) || ("use".equals(event) && (restricted == 1 || error)));
+        }
 
         // All checked before any is stored, see reports
         static List<Report> all(List<Bundle> list, int callingUid, Map<String, XHook> hooks) {
@@ -1118,10 +1346,10 @@ class XProvider {
             if (hookid == null || packageName == null || event == null || data == null)
                 throw new IllegalArgumentException("report invalid");
             restricted = data.getInt("restricted", 0);
-            // Only what the engine sends: an error of the install, or a use which restricted or failed, so the app
-            // itself cannot clear its restrictions from the log with a use which did not restrict, nor send others
+            // Only what the engine sends, see accepts
             boolean error = data.containsKey("exception");
-            if (!("install".equals(event) && error) && !("use".equals(event) && (restricted == 1 || error)))
+            boolean text = (ENGINE_HOOK.equals(hookid) && data.getString("exception") != null);
+            if (!accepts(hookid, event, error, restricted, text))
                 throw new IllegalArgumentException("report invalid");
             hook = hooks.get(hookid);
 
@@ -1136,7 +1364,11 @@ class XProvider {
         // the time of an error is stored as installed, which is the time of the last error.
         // A failing hook can fail on each call, so only its first error since the start is notified.
         void write(SQLiteDatabase d) throws Throwable {
-            notify = Boolean.parseBoolean(readSetting(d, Util.getUserId(uid), packageName, "notify"));
+            if (ENGINE_HOOK.equals(hookid)) {
+                writeEngine(d);
+                return;
+            }
+            notify = Boolean.parseBoolean(readSetting(d, Util.getUserId(uid), packageName, Data.NOTIFY));
             boolean use = "use".equals(event);
             restrictedUse = (hook != null && use && restricted == 1);
             boolean error = data.containsKey("exception");
@@ -1181,12 +1413,31 @@ class XProvider {
             }
         }
 
+        // The reason the app ran without its hooks, kept for the app, the last one; only for an app which has assignments,
+        // like the other reports, else any name could add rows
+        private void writeEngine(SQLiteDatabase d) throws Throwable {
+            try (Cursor cursor = d.query("assignment", new String[]{"uid"}, WHERE_APP,
+                    new String[]{packageName, Integer.toString(uid)}, null, null, null, "1")) {
+                engine = cursor.moveToFirst();
+            }
+            if (!engine) {
+                Log.w(TAG, "No assignment " + packageName + ":" + uid);
+                return;
+            }
+            writeSetting(d, -1, CATEGORY_ENGINE, engineKey(Util.getUserId(uid), packageName),
+                    limit(data.getString("exception"), MAX_EXCEPTION));
+        }
+
         // The first use of a group, or each use for hooks which notify; most reports notify nothing
         boolean notifiesUse() {
             return (used != null && restrictedUse && (hook.doNotify() || (notify && used < 0)));
         }
 
         void notifyUser(Context context) throws Throwable {
+            if (engine) {
+                notifyUnhooked(context);
+                return;
+            }
             boolean notifyUse = notifiesUse();
             if (!notifyUse && !firstError)
                 return;
@@ -1198,6 +1449,22 @@ class XProvider {
                     XNotify.notifyUsage(ctx, userid, uid, packageName, hook.getGroup(), hookid);
                 if (firstError)
                     XNotify.notifyException(ctx, userid, uid, packageName, hookid);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
+        }
+
+        // Once per app and boot, like the first error of a hook; one which could not be shown is told again
+        private void notifyUnhooked(Context context) throws Throwable {
+            int userid = Util.getUserId(uid);
+            if (!firstUnhooked(unhooked, userid, packageName))
+                return;
+            long ident = Binder.clearCallingIdentity();
+            try {
+                XNotify.notifyUnhooked(Util.createContextForUser(context, userid), userid, uid, packageName);
+            } catch (Throwable ex) {
+                unhooked.remove(engineKey(userid, packageName));
+                throw ex;
             } finally {
                 Binder.restoreCallingIdentity(ident);
             }
@@ -1292,6 +1559,9 @@ class XProvider {
 
         final String[] where = new String[]{packageName, Integer.toString(uid)};
         long[] counts = db.write(d -> {
+            // What the engine told about the app, and that it was told to the user
+            d.delete("setting", WHERE_SETTING, new String[]{"-1", CATEGORY_ENGINE, engineKey(userid, packageName)});
+            unhooked.remove(engineKey(userid, packageName));
             // Last use of the groups, so the first use is notified again
             d.delete("`group`", WHERE_APP, where);
             return new long[]{
@@ -1396,6 +1666,27 @@ class XProvider {
         return new Bundle();
     }
 
+    // Several settings of a user in one call and transaction, like a restore of a backup writes them: the arrays of the
+    // categories, names and values (null deletes), in the same order
+    private static Bundle putSettings(Bundle extras) throws Throwable {
+        final int userid = extras.getInt("user");
+        final String[] categories = extras.getStringArray("categories");
+        final String[] names = extras.getStringArray("names");
+        final String[] values = extras.getStringArray("values");
+        if (categories == null || names == null || values == null ||
+                categories.length != names.length || names.length != values.length)
+            throw new IllegalArgumentException("settings invalid");
+        Log.i(TAG, "Put settings " + userid + " count=" + names.length);
+
+        db.write(d -> {
+            for (int i = 0; i < names.length; i++)
+                writeSetting(d, userid, categories[i], names[i], values[i]);
+            return null;
+        });
+
+        return new Bundle();
+    }
+
     // A null value deletes the setting
     private static void writeSetting(SQLiteDatabase d, int userid, String category, String name, String value)
             throws Throwable {
@@ -1446,7 +1737,7 @@ class XProvider {
         final String packageName = selection[0];
         final int userid = Util.getUserId(uid);
 
-        Map<String, String> global = readSettings(userid, "global");
+        Map<String, String> global = readSettings(userid, Data.GLOBAL);
         Map<String, String> app = readSettings(userid, packageName);
         String developer = keptDeveloper(db, packageName, FakeIds.signer(getSignatures(context, userid, packageName)));
         return toCursor(FakeIds.getBootValues(getBootSecret(), getKeptSecret(), userid, packageName, developer, global, app));
@@ -1562,7 +1853,7 @@ class XProvider {
     // the packages of its uid, and with global also the settings for all apps; else it could read the fake values
     // of other apps, see XProviderTest
     static boolean mayRead(String category, boolean global, String[] packages) {
-        return ((global && "global".equals(category)) ||
+        return ((global && Data.GLOBAL.equals(category)) ||
                 (packages != null && Arrays.asList(packages).contains(category)));
     }
 
@@ -1576,10 +1867,17 @@ class XProvider {
         }
     }
 
-    // The service answers system server, the app and apps with assignments, which are hooked. Other apps get
+    // The service answers system server, the app and apps with assignments which are in the LSPosed scope. Other apps get
     // the answers of a device without Doppel, so they cannot detect it nor read the values of settings.
     // Apps with assignments get the answers of a device without Doppel for everything but their start-up queries and
     // reports, see XCore.serve, and their own code gets them for these too, see XCore.hideService.
+    // The scope is the one the manager told the service, see putScope: an app outside it has no engine, which assignments
+    // alone, like of new apps (restrict_new_apps), a restore or a removal from the scope, do not tell. Until the manager of
+    // a user told it once, which it does when it starts with a framework which has the libxposed service, the apps of that
+    // user with assignments are all answered, as before, else an update would leave every app of the user without hooks;
+    // that includes a user whose framework has no such service. A scope the user changes in the framework instead of in
+    // Doppel is not known to the service until the manager starts again (Doppel itself is not): an app added that way
+    // runs without hooks until then, an app removed that way is answered until then.
     // shortcut: code of theirs which gets past hideService, like their AppComponentFactory or a binder transaction of
     // their own, can still ask for their hooks, settings and fake values like the engine does at their start, which
     // the service cannot tell apart, so it can detect Doppel; answering only the first of these queries of a process
@@ -1593,74 +1891,79 @@ class XProvider {
             // System server and the app first: system server has the assignments of Android too;
             // the packages of the caller are looked up once for both
             String[] packages = getPackagesForUid(context, cuid);
-            if (permitted(context, cuid, packages))
-                return CALLER_PERMITTED;
-
-            if (packages != null && packages.length > 0) {
-                final List<String> args = new ArrayList<>();
-                args.add(Integer.toString(cuid));
-                args.addAll(Arrays.asList(packages));
-                final String where = "uid = ? AND package IN (" +
-                        TextUtils.join(",", Collections.nCopies(packages.length, "?")) + ")";
-                boolean assigned = db.read(d -> {
-                    try (Cursor cursor = d.query("assignment", new String[]{"uid"}, where,
-                            args.toArray(new String[0]), null, null, null, "1")) {
-                        return cursor.moveToFirst();
-                    }
-                });
-                if (assigned)
-                    return CALLER_ASSIGNED;
-            }
-
-            return CALLER_NONE;
+            return caller(cuid, packages, permitted(context, cuid, packages), scopes, () -> hasAssignments(cuid, packages));
         } catch (Throwable ex) {
             throw failed(ex);
         }
     }
 
+    interface Check {
+        boolean run() throws Throwable;
+    }
+
+    // The tier of a caller, see answers; the assignments are looked up only for an app which is in the scope
+    static int caller(int cuid, String[] packages, boolean permitted, Map<Integer, Set<String>> scopes, Check assigned)
+            throws Throwable {
+        if (permitted)
+            return CALLER_PERMITTED;
+        if (packages == null || packages.length == 0 || !inScope(scopes, Util.getUserId(cuid), packages) || !assigned.run())
+            return CALLER_NONE;
+        return CALLER_ASSIGNED;
+    }
+
+    // Whether an app of a user is in its scope, which is any package of its uid; every app of a user whose scope was
+    // never told, see answers
+    static boolean inScope(Map<Integer, Set<String>> scopes, int userid, String[] packages) {
+        Set<String> scope = (scopes == null ? null : scopes.get(userid));
+        if (scope == null)
+            return true;
+        for (String packageName : packages)
+            if (scope.contains(packageName))
+                return true;
+        return false;
+    }
+
+    private static boolean hasAssignments(int cuid, String[] packages) throws Throwable {
+        final List<String> args = new ArrayList<>();
+        args.add(Integer.toString(cuid));
+        args.addAll(Arrays.asList(packages));
+        final String where = "uid = ? AND package IN (" +
+                TextUtils.join(",", Collections.nCopies(packages.length, "?")) + ")";
+        return db.read(d -> {
+            try (Cursor cursor = d.query("assignment", new String[]{"uid"}, where,
+                    args.toArray(new String[0]), null, null, null, "1")) {
+                return cursor.moveToFirst();
+            }
+        });
+    }
+
     // Whether the caller is system server or the app; also for getVersion, see XCore.hookSettings
     static boolean hasPermission(Context context) {
-        try {
-            enforcePermission(context);
-            return true;
-        } catch (SecurityException ignored) {
-            return false;
-        }
+        int callingUid = Binder.getCallingUid();
+        return permitted(context, callingUid, getPackagesForUid(context, callingUid));
     }
 
     // The uid of a selection of a package or category and a uid, which a hooked app may ask about for itself and its own
     // packages only (see mayAsk), else the app is needed, of its own user only
     private static int ownUid(Context context, String method, String[] selection, boolean permitted) {
+        return ownUid(Binder.getCallingUid(), method, selection, permitted, uid -> getPackagesForUid(context, uid));
+    }
+
+    static int ownUid(int callingUid, String method, String[] selection, boolean permitted, IntFunction<String[]> packages) {
         if (selection == null || selection.length != 2)
             throw new IllegalArgumentException("selection invalid");
         int uid = Integer.parseInt(selection[1]);
-        if (!forOwnUser(Binder.getCallingUid(), method, 0, uid, false))
-            throw new SecurityException("Other user cuid=" + Binder.getCallingUid());
-        if (!permitted) {
-            enforceCallerOrPermission(context, uid);
-            if (!mayAsk(method, selection[0], getPackagesForUid(context, uid)))
-                enforcePermission(context);
-        }
+        if (!forOwnUser(callingUid, method, 0, uid, false))
+            throw new SecurityException("Other user cuid=" + callingUid);
+        // Hooked apps may read their own data only; a caller who is not permitted is never the app
+        if (!permitted && (callingUid != uid || !mayAsk(method, selection[0], packages.apply(uid))))
+            throw new SecurityException("Permission error cuid=" + callingUid);
         return uid;
     }
 
     // Each query of a hooked app is about one of its packages, the settings also about global, see XProviderTest
     static boolean mayAsk(String method, String category, String[] packages) {
         return mayRead(category, "getSettings".equals(method), packages);
-    }
-
-    // Hooked apps may read their own data only
-    private static void enforceCallerOrPermission(Context context, int uid) throws SecurityException {
-        if (Binder.getCallingUid() != uid)
-            enforcePermission(context);
-    }
-
-    // System server and the app, for any user: a package name belongs to one app on the device.
-    // Apps signed with the same key are not let in: there is no companion app anymore.
-    private static void enforcePermission(Context context) throws SecurityException {
-        int callingUid = Binder.getCallingUid();
-        if (!permitted(context, callingUid, getPackagesForUid(context, callingUid)))
-            throw new SecurityException("Permission error cuid=" + callingUid);
     }
 
     // The signers of the module which system server loaded, read when it is ready (see XCore.hookAndroid) and never

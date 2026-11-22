@@ -116,4 +116,50 @@ public class XDatabaseFolderTest {
         assertEquals(old, XDatabase.folder(old, missing));
         assertFalse(missing.getParentFile().exists());
     }
+
+    // Android deletes a corrupt database; a copy of it, with its log, stays, for the user to have it looked at
+    @Test
+    public void corruptDatabaseKeepsACopy() throws IOException {
+        File db = new File(old, "xlua.db");
+        write(db, "corrupt");
+        write(new File(old, "xlua.db-wal"), "log");
+        XDatabase.keepCorrupt(db, 1000);
+        assertEquals("corrupt", read(new File(old, "xlua.db.corrupt-1000")));
+        assertEquals("log", read(new File(old, "xlua.db.corrupt-1000-wal")));
+        // Android deletes the files itself, which the copy does not
+        assertEquals("corrupt", read(db));
+
+        // No log is no copy of one, and a file which is gone is no reason to fail
+        write(db, "second");
+        assertTrue(new File(old, "xlua.db-wal").delete());
+        XDatabase.keepCorrupt(db, 2000);
+        assertEquals("second", read(new File(old, "xlua.db.corrupt-2000")));
+        assertFalse(new File(old, "xlua.db.corrupt-2000-wal").exists());
+        assertTrue(db.delete());
+        XDatabase.keepCorrupt(db, 3000);
+        assertFalse(new File(old, "xlua.db.corrupt-3000").exists());
+    }
+
+    // Only the last copies stay, the older ones with their logs go; other files of the folder stay
+    @Test
+    public void onlyTheLastCorruptCopiesStay() throws IOException {
+        File db = new File(old, "xlua.db");
+        write(db, "x");
+        write(new File(old, "other.txt"), "other");
+        for (long time : new long[]{1000, 3000, 2000, 10000, 4000}) {
+            write(new File(old, "xlua.db-wal"), "log" + time);
+            XDatabase.keepCorrupt(db, time);
+        }
+        // By the time in the name, not by name: 10000 sorts before 2000 as text
+        assertTrue(new File(old, "xlua.db.corrupt-10000").exists());
+        assertTrue(new File(old, "xlua.db.corrupt-4000").exists());
+        assertEquals("log4000", read(new File(old, "xlua.db.corrupt-4000-wal")));
+        for (long time : new long[]{1000, 2000, 3000}) {
+            assertFalse(new File(old, "xlua.db.corrupt-" + time).exists());
+            assertFalse(new File(old, "xlua.db.corrupt-" + time + "-wal").exists());
+        }
+        assertEquals(XDatabase.KEPT_CORRUPT,
+                old.listFiles((dir, name) -> name.startsWith("xlua.db.corrupt-") && !name.endsWith("-wal")).length);
+        assertEquals("other", read(new File(old, "other.txt")));
+    }
 }

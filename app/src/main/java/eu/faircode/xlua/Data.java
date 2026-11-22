@@ -33,6 +33,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +45,19 @@ import java.util.Set;
 // Calls block, so call them from a background thread.
 final class Data {
     private static final String TAG = "XLua.Data";
+
+    // The settings the service, the manager and the engine all know by name: the category of the settings for all apps
+    // and of a user, and the settings of a user, of an app and of the manager's own look
+    static final String GLOBAL = "global";
+    static final String COLLECTION = "collection";
+    static final String RESTRICT_NEW_APPS = "restrict_new_apps";
+    static final String NOTIFY_NEW_APPS = "notify_new_apps";
+    static final String THEME = "theme";
+    static final String PALETTE = "palette";
+    static final String BLACK = "black";
+    // Of an app, in its own category
+    static final String FORCE_STOP = "forcestop";
+    static final String NOTIFY = "notify";
 
     private Data() {
     }
@@ -57,7 +71,8 @@ final class Data {
         return (version == BuildConfig.VERSION_CODE);
     }
 
-    // Version of the module of the service, -1 when the module is not running
+    // Version of the module of the service, -1 when the module is not running; only the app and system server get it,
+    // hooked apps ask with getServiceVersion
     static int getVersion(Context context) {
         try {
             // No answer is no module, see XCore.hookSettings
@@ -66,6 +81,48 @@ final class Data {
         } catch (Throwable ex) {
             Log.e(TAG, Log.getStackTraceString(ex));
             return -1;
+        }
+    }
+
+    // Version of the module of the service as it tells an app with assignments, which the engine asks before it reads
+    // its hooks: the service keeps the code of the module it started with until a reboot, so after an update the engine
+    // of a started app is of another version than the service, which sends parcels of its own layout; a service of before
+    // this query refuses it (the error of the settings provider, or a SecurityException).
+    // The engine compares it with isAvailable(version), see XCore.hookPackage.
+    static int getServiceVersion(Context context) {
+        try (Cursor cursor = query(context, "getServiceVersion", null)) {
+            return (cursor.moveToFirst() ? cursor.getInt(0) : -1);
+        }
+    }
+
+    // The parcels of the service are made by the module it runs, which has another layout after an update until a reboot:
+    // the manager does not read them then, wherever it was opened, like from the state of a screen it saved or from an old
+    // notification, instead of showing what the layout of the other version makes of them. The version of the service
+    // cannot change within a process of the manager: a restart of system server ends it. The engine has no permission to
+    // ask, see getServiceVersion.
+    private static volatile boolean sameVersion = false;
+
+    private static void requireSameVersion(Context context) {
+        if (sameVersion || !BuildConfig.APPLICATION_ID.equals(context.getPackageName()))
+            return;
+        requireSameVersion(getVersion(context), context);
+        sameVersion = true;
+    }
+
+    static void requireSameVersion(int version, Context context) {
+        if (!isAvailable(version))
+            throw new ModuleVersionException(context.getString(R.string.msg_module_version, version, BuildConfig.VERSION_CODE));
+    }
+
+    // The service runs another version of the module than this app, or none; the message is for the user
+    static class ModuleVersionException extends IllegalStateException {
+        ModuleVersionException(String message) {
+            super(message);
+        }
+
+        @Override
+        public String toString() {
+            return getMessage();
         }
     }
 
@@ -97,6 +154,7 @@ final class Data {
     }
 
     private static <T> List<T> query(Context context, String method, String[] selection, Parcelable.Creator<T> creator) {
+        requireSameVersion(context);
         List<T> result = new ArrayList<>();
         try (Cursor cursor = query(context, method, selection)) {
             while (cursor.moveToNext())
@@ -134,6 +192,7 @@ final class Data {
     // Hooks assigned to an app, with their scripts, which come once each, with the first hook which has it;
     // a service of the former version, until the restart after an update, sends them with each hook
     static List<XHook> getAssignedHooks(Context context, String packageName, int uid) {
+        requireSameVersion(context);
         List<XHook> result = new ArrayList<>();
         List<String> scripts = new ArrayList<>();
         try (Cursor cursor = query(context, "getAssignedHooks2", new String[]{packageName, Integer.toString(uid)})) {
@@ -351,6 +410,32 @@ final class Data {
         putSetting(context, category, name, Boolean.toString(value));
     }
 
+    // Several settings of the current user in one call, null values delete: {category, name, value} each
+    static void putSettings(Context context, List<String[]> settings) {
+        String[] categories = new String[settings.size()];
+        String[] names = new String[settings.size()];
+        String[] values = new String[settings.size()];
+        for (int i = 0; i < categories.length; i++) {
+            categories[i] = settings.get(i)[0];
+            names[i] = settings.get(i)[1];
+            values[i] = settings.get(i)[2];
+        }
+        Bundle args = new Bundle();
+        args.putInt("user", Util.getUserId(Process.myUid()));
+        args.putStringArray("categories", categories);
+        args.putStringArray("names", names);
+        args.putStringArray("values", values);
+        call(context, "putSettings", args);
+    }
+
+    // The LSPosed scope of the current user, which the framework tells the manager, see Scope and XProvider.answers
+    static void putScope(Context context, Collection<String> scope) {
+        Bundle args = new Bundle();
+        args.putInt("user", Util.getUserId(Process.myUid()));
+        args.putStringArrayList("scope", new ArrayList<>(scope));
+        call(context, "putScope", args);
+    }
+
     // Settings of a category (global or a package name) of the current user
     static Map<String, String> getSettings(Context context, String category) {
         return queryMap(context, "getSettings", new String[]{category, Integer.toString(Process.myUid())});
@@ -383,11 +468,11 @@ final class Data {
 
     // Enabled hook collections
     static List<String> getCollection(Context context) {
-        return Util.parseCollection(getSetting(context, "global", "collection"));
+        return Util.parseCollection(getSetting(context, GLOBAL, COLLECTION));
     }
 
     static void putCollection(Context context, List<String> collection) {
-        putSetting(context, "global", "collection",
+        putSetting(context, GLOBAL, COLLECTION,
                 collection.isEmpty() ? null : TextUtils.join(",", collection));
     }
 

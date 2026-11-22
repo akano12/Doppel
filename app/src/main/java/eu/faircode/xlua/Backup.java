@@ -20,7 +20,6 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.util.Log;
@@ -29,9 +28,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -56,6 +57,8 @@ class Backup {
     // A file which is not a backup of this version, like exported definitions, which have a similar name;
     // the message is for the user (see Ui.error, which shows toString), the cause for the log
     static class FileException extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
         FileException(String message, Throwable cause) {
             super(message, cause);
         }
@@ -72,6 +75,23 @@ class Backup {
         final List<String> existing = new ArrayList<>(); // Custom definitions which others would replace
         final List<String> added = new ArrayList<>(); // Definitions which replace none of these
         boolean android; // Restrictions of system server
+    }
+
+    // A restore which failed, with what it had done put back: the message is for the user, see FileException
+    static class RestoreException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+
+        final int notUndone; // The steps which could not be put back
+
+        RestoreException(String message, Throwable cause, int notUndone) {
+            super(message, cause);
+            this.notUndone = notUndone;
+        }
+
+        @Override
+        public String toString() {
+            return getMessage();
+        }
     }
 
     // What a restore did, see restore and FragmentSettings
@@ -141,11 +161,18 @@ class Backup {
         return new int[]{jsettings.length(), jhooks.length(), jrestrictions.length()};
     }
 
-    private static JSONObject read(Context context, Uri uri) throws Throwable {
+    // The file is read once, by the screen which asks before a restore: what the user confirmed in the preview, which can
+    // come from someone else, is what restore applies, not what the file holds when it is read again
+    static JSONObject read(Context context, Uri uri) throws Throwable {
+        return parse(context, Util.readText(context, uri));
+    }
+
+    static JSONObject parse(Context context, String text) {
         JSONObject jroot;
         try {
-            jroot = new JSONObject(Util.readText(context, uri));
-        } catch (JSONException ex) {
+            jroot = new JSONObject(text);
+        } catch (JSONException | StackOverflowError ex) {
+            // A file which is cut off, or which is not JSON, or nests deeper than the parser reads
             throw new FileException(context.getString(R.string.msg_not_backup), ex);
         }
         if (!jroot.has("format"))
@@ -160,7 +187,11 @@ class Backup {
     // the other definitions run theirs in the apps restricted with them,
     // and restrictions of android apply to all of system server, like restricting it by hand
     static Preview preview(Context context, Uri uri) throws Throwable {
-        return preview(read(context, uri), Data.getBuiltinIds(context));
+        return preview(context, read(context, uri));
+    }
+
+    static Preview preview(Context context, JSONObject jroot) {
+        return preview(jroot, Data.getBuiltinIds(context));
     }
 
     static Preview preview(JSONObject jroot, Set<String> builtins) {
@@ -193,95 +224,340 @@ class Backup {
         return preview;
     }
 
+    // The longest category and name, and the longest value of a setting, which a restore applies: a value of a megabyte, which
+    // no setting of Doppel is, would not go through the binder to the service
+    static final int MAX_NAME = 1024;
+    static final int MAX_VALUE = 100 * 1000;
+
+    // What the service does for a restore, and what it is asked to put back: in one place, so a restore which fails halfway
+    // is tested with a service which fails
+    interface Service {
+        Set<String> builtinIds() throws Throwable;
+
+        // The custom definitions as users edit them, and all settings of the user, which a failed restore puts back
+        JSONArray customHooks() throws Throwable;
+
+        List<String[]> settings() throws Throwable;
+
+        List<XHook> allHooks() throws Throwable;
+
+        List<String> collection() throws Throwable;
+
+        XHook putCustom(JSONObject jhook) throws Throwable;
+
+        // A null definition deletes a custom definition
+        void putHook(String id, String definition) throws Throwable;
+
+        void putSettings(List<String[]> settings) throws Throwable;
+
+        // The uid of an installed package, null when it is not
+        Integer uid(String packageName) throws Throwable;
+
+        // The app as the screens list it, null when it is not listed, see XProvider.inSystemServerOnly
+        XApp app(String packageName, int uid) throws Throwable;
+
+        boolean inSystemServerOnly(String packageName) throws Throwable;
+
+        // The number of assignments which were added or deleted
+        int assign(ArrayList<String> ids, String packageName, int uid, boolean delete, boolean kill) throws Throwable;
+    }
+
+    private static class Live implements Service {
+        private final Context context;
+
+        Live(Context context) {
+            this.context = context;
+        }
+
+        @Override
+        public Set<String> builtinIds() {
+            return Data.getBuiltinIds(context);
+        }
+
+        @Override
+        public JSONArray customHooks() throws JSONException {
+            return Data.getCustomHooks(context);
+        }
+
+        @Override
+        public List<String[]> settings() {
+            return Data.getAllSettings(context);
+        }
+
+        @Override
+        public List<XHook> allHooks() {
+            return Data.getAllHooks(context, null);
+        }
+
+        @Override
+        public List<String> collection() {
+            return Data.getCollection(context);
+        }
+
+        @Override
+        public XHook putCustom(JSONObject jhook) throws JSONException {
+            return Data.putCustom(context, jhook);
+        }
+
+        @Override
+        public void putHook(String id, String definition) {
+            Data.putHook(context, id, definition);
+        }
+
+        @Override
+        public void putSettings(List<String[]> settings) {
+            Data.putSettings(context, settings);
+        }
+
+        @Override
+        public Integer uid(String packageName) throws Throwable {
+            try {
+                return Util.getApplicationInfo(context.getPackageManager(), packageName, 0).uid;
+            } catch (PackageManager.NameNotFoundException ignored) {
+                return null;
+            }
+        }
+
+        @Override
+        public XApp app(String packageName, int uid) {
+            return Data.getApp(context, packageName, uid);
+        }
+
+        @Override
+        public boolean inSystemServerOnly(String packageName) {
+            try {
+                PackageManager pm = context.getPackageManager();
+                return XProvider.inSystemServerOnly(pm, Util.getApplicationInfo(pm, packageName, 0));
+            } catch (PackageManager.NameNotFoundException ignored) {
+                return false;
+            }
+        }
+
+        @Override
+        public int assign(ArrayList<String> ids, String packageName, int uid, boolean delete, boolean kill) {
+            // Restored hooks do not count as restricted recently
+            return Data.assignHooks(context, ids, packageName, uid, delete, kill, !delete);
+        }
+    }
+
+    // What a backup has which can be applied, all found and checked before anything is written; what cannot be read is
+    // left out and counted, the rest is restored
+    static class Plan {
+        final List<JSONObject> hooks = new ArrayList<>();
+        final List<String[]> settings = new ArrayList<>(); // Category, name and value, which is null to delete it
+        final List<Restriction> restrictions = new ArrayList<>();
+        boolean hasRestrictions = false;
+        JSONArray builtins; // As the backup has them, if it does
+    }
+
+    static class Restriction {
+        final String packageName;
+        final List<String> ids = new ArrayList<>();
+
+        Restriction(String packageName) {
+            this.packageName = packageName;
+        }
+    }
+
+    static Plan plan(JSONObject jroot, Result result) {
+        Plan plan = new Plan();
+
+        // Definitions: one this version cannot read leaves the others; with a script which compiles, like an import,
+        // else it would only fail in the apps
+        JSONArray jhooks = jroot.optJSONArray("hooks");
+        for (int i = 0; jhooks != null && i < jhooks.length(); i++)
+            try {
+                JSONObject jhook = jhooks.getJSONObject(i);
+                ActivityHookEdit.check(jhook);
+                plan.hooks.add(jhook);
+            } catch (Throwable ex) {
+                Log.w(TAG, "Custom definition not restored: " + ex);
+                result.hooksFailed++;
+            }
+
+        JSONArray jsettings = jroot.optJSONArray("settings");
+        for (int i = 0; jsettings != null && i < jsettings.length(); i++) {
+            // One which cannot be read leaves the others, like a definition
+            JSONObject jsetting = jsettings.optJSONObject(i);
+            try {
+                if (jsetting == null || jsetting.isNull("category") || jsetting.isNull("name"))
+                    throw new IllegalArgumentException("Setting invalid");
+                String category = jsetting.getString("category");
+                String name = jsetting.getString("name");
+                String value = (jsetting.isNull("value") ? null : jsetting.getString("value"));
+                if (category.length() > MAX_NAME || name.length() > MAX_NAME || (value != null && value.length() > MAX_VALUE))
+                    throw new IllegalArgumentException("Setting too long");
+                plan.settings.add(new String[]{category, name, value});
+            } catch (JSONException | IllegalArgumentException ex) {
+                Log.w(TAG, "Setting not restored: " + ex);
+                result.failed++;
+            }
+        }
+
+        JSONArray jrestrictions = jroot.optJSONArray("restrictions");
+        plan.hasRestrictions = (jrestrictions != null);
+        for (int i = 0; jrestrictions != null && i < jrestrictions.length(); i++) {
+            JSONObject jrestriction = jrestrictions.optJSONObject(i);
+            JSONArray jids = (jrestriction == null ? null : jrestriction.optJSONArray("hooks"));
+            if (jrestriction == null || jrestriction.isNull("package") || jids == null) {
+                result.failed++;
+                continue;
+            }
+            try {
+                Restriction restriction = new Restriction(jrestriction.getString("package"));
+                for (int j = 0; j < jids.length(); j++)
+                    restriction.ids.add(jids.getString(j));
+                plan.restrictions.add(restriction);
+            } catch (JSONException ex) {
+                Log.w(TAG, "Restriction not restored: " + ex);
+                result.failed++;
+            }
+        }
+
+        JSONArray jbuiltins = jroot.optJSONArray("builtins");
+        if (jbuiltins != null)
+            try {
+                for (int i = 0; i < jbuiltins.length(); i++)
+                    jbuiltins.getString(i);
+                plan.builtins = jbuiltins;
+            } catch (JSONException ex) {
+                Log.w(TAG, "Built-in definitions of the backup not read: " + ex);
+            }
+        return plan;
+    }
+
+    // A step which puts back what a step of a restore did
+    interface Undo {
+        void run() throws Throwable;
+    }
+
+    // The steps in the reverse order of their making; one which fails does not keep the others, the number of those is
+    // returned
+    static int undo(Deque<Undo> steps) {
+        int failed = 0;
+        while (!steps.isEmpty())
+            try {
+                steps.pop().run();
+            } catch (Throwable ex) {
+                Log.w(TAG, "Not put back: " + ex);
+                failed++;
+            }
+        return failed;
+    }
+
     // Values with the same name are replaced, restrictions are added to the ones an app has;
     // apps of which restrictions were added are stopped when they are stopped automatically
     static Result restore(Context context, Uri uri) throws Throwable {
-        JSONObject jroot = read(context, uri);
+        return restore(context, read(context, uri));
+    }
 
+    static Result restore(Context context, JSONObject jroot) throws Throwable {
+        return restore(context, new Live(context), jroot);
+    }
+
+    // Everything the file holds is checked before the first write, and what is written is put back when a later write
+    // fails (the service gone, a call refused), so a restore is all or nothing: with the definitions already live and
+    // some of the settings and restrictions replaced, the user would have a state which no backup has. Only the
+    // apps stopped to apply the restrictions stay stopped, which starts them again.
+    static Result restore(Context context, Service service, JSONObject jroot) throws Throwable {
         Result result = new Result();
         result.version = jroot.optInt("version", 0);
+        Plan plan = plan(jroot, result);
 
-        // Definitions first, so restrictions can refer to them; one this version cannot read leaves the others
-        JSONArray jhooks = jroot.optJSONArray("hooks");
-        Set<String> builtinIds = (jhooks == null ? null : Data.getBuiltinIds(context));
-        if (jhooks != null)
-            for (int i = 0; i < jhooks.length(); i++)
+        Deque<Undo> undo = new ArrayDeque<>();
+        try {
+            apply(service, plan, jroot, result, undo);
+        } catch (Throwable ex) {
+            Log.e(TAG, "Restore failed: " + ex);
+            int failed = undo(undo);
+            throw new RestoreException(failed == 0
+                    ? context.getString(R.string.msg_restore_undone, ex.toString())
+                    : context.getString(R.string.msg_restore_undone_partly, failed, ex.toString()), ex, failed);
+        }
+        return result;
+    }
+
+    private static void apply(Service service, Plan plan, JSONObject jroot, Result result, Deque<Undo> undo) throws Throwable {
+        // Definitions first, so restrictions can refer to them
+        if (!plan.hooks.isEmpty()) {
+            Set<String> builtinIds = service.builtinIds();
+            Map<String, JSONObject> custom = new HashMap<>();
+            JSONArray jcustom = service.customHooks();
+            for (int i = 0; i < jcustom.length(); i++) {
+                JSONObject jhook = jcustom.getJSONObject(i);
+                custom.put(XHook.id(jhook.optString("collection"), jhook.optString("name")), jhook);
+            }
+            for (JSONObject jhook : plan.hooks)
                 try {
-                    // With a script which compiles, like an import, else it would only fail in the apps
-                    JSONObject jhook = jhooks.getJSONObject(i);
-                    ActivityHookEdit.check(jhook);
-                    XHook hook = Data.putCustom(context, jhook);
+                    XHook hook = service.putCustom(jhook);
+                    // Putting back a definition of the user, or deleting the one which replaced a built-in one
+                    final String id = hook.getId();
+                    final JSONObject was = custom.get(id);
+                    undo.push(() -> {
+                        if (was == null)
+                            service.putHook(id, null);
+                        else
+                            service.putCustom(was);
+                    });
                     result.hooks++;
-                    if (builtinIds.contains(hook.getId()))
-                        result.replaced.add(hook.getId());
+                    if (builtinIds.contains(id))
+                        result.replaced.add(id);
                 } catch (Throwable ex) {
+                    // The service can refuse a definition this version cannot use, like one of a class it does not have
                     Log.w(TAG, "Custom definition not restored: " + ex);
                     result.hooksFailed++;
                 }
+        }
 
-        // Settings before restrictions, so restored apps are stopped according to their restored setting
-        JSONArray jsettings = jroot.optJSONArray("settings");
-        if (jsettings != null)
-            for (int i = 0; i < jsettings.length(); i++) {
-                // One which cannot be read leaves the others, like a definition
-                JSONObject jsetting = jsettings.optJSONObject(i);
-                if (jsetting == null || !jsetting.has("category") || !jsetting.has("name")) {
-                    result.failed++;
-                    continue;
-                }
-                Data.putSetting(context,
-                        jsetting.getString("category"),
-                        jsetting.getString("name"),
-                        jsetting.isNull("value") ? null : jsetting.getString("value"));
-                result.settings++;
+        // Settings before restrictions, so restored apps are stopped according to their restored setting; in calls of
+        // some at a time
+        if (!plan.settings.isEmpty()) {
+            Map<String, String> before = new HashMap<>();
+            for (String[] setting : service.settings())
+                before.put(setting[0] + "\n" + setting[1], setting[2]);
+            for (List<String[]> chunk : chunks(plan.settings)) {
+                // Registered before the call, which can fail after the service wrote them; putting back what is there is
+                // harmless
+                List<String[]> back = new ArrayList<>();
+                for (String[] setting : chunk)
+                    back.add(new String[]{setting[0], setting[1], before.get(setting[0] + "\n" + setting[1])});
+                undo.push(() -> service.putSettings(back));
+                service.putSettings(chunk);
+                result.settings += chunk.size();
             }
+        }
 
-        JSONArray jrestrictions = jroot.optJSONArray("restrictions");
-        if (jrestrictions == null)
-            return result;
+        if (!plan.hasRestrictions)
+            return;
 
         // The definitions now, with the restored custom ones, and the built-in ones newer than the backup
         Map<String, XHook> hooks = new HashMap<>();
-        for (XHook hook : Data.getAllHooks(context, null))
+        for (XHook hook : service.allHooks())
             hooks.put(hook.getId(), hook);
-        Set<String> builtins = Data.getBuiltinIds(context);
-        JSONArray jbuiltins = jroot.optJSONArray("builtins");
+        Set<String> builtins = service.builtinIds();
         Set<String> newer = new HashSet<>();
-        if (jbuiltins != null) {
+        if (plan.builtins != null) {
             Set<String> known = new HashSet<>();
-            for (int i = 0; i < jbuiltins.length(); i++)
-                known.add(renamed(jbuiltins.getString(i)));
+            for (int i = 0; i < plan.builtins.length(); i++)
+                known.add(renamed(plan.builtins.getString(i)));
             for (String id : builtins)
                 if (!known.contains(id))
                     newer.add(id);
         }
-        List<String> collection = Data.getCollection(context);
+        List<String> collection = service.collection();
 
-        PackageManager pm = context.getPackageManager();
-        for (int i = 0; i < jrestrictions.length(); i++) {
-            JSONObject jrestriction = jrestrictions.optJSONObject(i);
-            if (jrestriction == null || !jrestriction.has("package") || jrestriction.optJSONArray("hooks") == null) {
-                result.failed++;
-                continue;
-            }
-            String packageName = jrestriction.getString("package");
-            ApplicationInfo ai;
-            try {
-                ai = Util.getApplicationInfo(pm, packageName, 0);
-            } catch (PackageManager.NameNotFoundException ignored) {
+        for (Restriction restriction : plan.restrictions) {
+            String packageName = restriction.packageName;
+            Integer uid = service.uid(packageName);
+            if (uid == null) {
                 result.missing.add(packageName);
                 continue;
             }
-            int uid = ai.uid;
-            XApp app = Data.getApp(context, packageName, uid);
+            XApp app = service.app(packageName, uid);
             if (app == null) {
                 // Installed, but not listed because its restrictions would never be installed
-                try {
-                    if (XProvider.inSystemServerOnly(pm, ai))
-                        continue;
-                } catch (PackageManager.NameNotFoundException ignored) {
-                }
-                result.missing.add(packageName);
+                if (!service.inSystemServerOnly(packageName))
+                    result.missing.add(packageName);
                 continue;
             }
 
@@ -292,9 +568,7 @@ class Backup {
 
             // Renamed definitions get the restrictions of their former name, removed ones are left out
             Set<String> ids = new LinkedHashSet<>();
-            JSONArray jids = jrestriction.getJSONArray("hooks");
-            for (int j = 0; j < jids.length(); j++) {
-                String id = jids.getString(j);
+            for (String id : restriction.ids) {
                 String current = renamed(id);
                 if (!hooks.containsKey(current)) {
                     result.removed++;
@@ -315,12 +589,17 @@ class Backup {
                 if (ids.add(id) && !existing.contains(id))
                     result.completed++;
 
+            // Only the restrictions the app did not have are put back, with the usage of the others kept
+            final ArrayList<String> added = new ArrayList<>(ids);
+            added.removeAll(existing);
+            final int appUid = uid;
+            undo.push(() -> service.assign(added, packageName, appUid, true, false));
+
             // Only apps whose restrictions changed are stopped; persistent apps apply them after a restart
-            int added = Data.assignHooks(context, new ArrayList<>(ids), packageName, uid,
-                    false, app.stopsAutomatically(), true);
+            int changed = service.assign(new ArrayList<>(ids), packageName, uid, false, app.stopsAutomatically());
             result.apps++;
-            result.added += added;
-            if (added > 0) {
+            result.added += changed;
+            if (changed > 0) {
                 if (app.persistent)
                     result.reboot.add(app.getLabel());
                 else if (app.forceStop)
@@ -329,14 +608,35 @@ class Backup {
 
             // Without the definitions of the backup, the ones added since cannot be told from the ones
             // the user did not want; the groups which are partially restricted now are worth a look
-            XApp restored = (jbuiltins == null ? Data.getApp(context, packageName, uid) : null);
+            XApp restored = (plan.builtins == null ? service.app(packageName, uid) : null);
             if (restored != null)
                 for (String group : groups)
                     if (restored.getAssignments(group).size() <
                             Data.getAvailable(new ArrayList<>(hooks.values()), restored, collection, group).size())
                         result.partial++;
         }
+    }
 
+    // The settings in parts which fit a call: a number of settings, and of characters, at most
+    static final int CHUNK_SETTINGS = 100;
+    static final int CHUNK_CHARS = 100 * 1000;
+
+    static List<List<String[]>> chunks(List<String[]> settings) {
+        List<List<String[]>> result = new ArrayList<>();
+        List<String[]> chunk = new ArrayList<>();
+        int chars = 0;
+        for (String[] setting : settings) {
+            int length = setting[0].length() + setting[1].length() + (setting[2] == null ? 0 : setting[2].length());
+            if (!chunk.isEmpty() && (chunk.size() >= CHUNK_SETTINGS || chars + length > CHUNK_CHARS)) {
+                result.add(chunk);
+                chunk = new ArrayList<>();
+                chars = 0;
+            }
+            chunk.add(setting);
+            chars += length;
+        }
+        if (!chunk.isEmpty())
+            result.add(chunk);
         return result;
     }
 

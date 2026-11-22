@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -55,14 +56,33 @@ public class ReceiverPackageTest {
         assertFalse(ReceiverPackage.runs(Arrays.asList(process(UID, "shared.app"), process(UID, (String[]) null)), PACKAGE, UID));
     }
 
-    // Like when the user restricts an app: persistent apps are never stopped, system apps only when the user set so
+    // Like when the user restricts an app: persistent apps are never stopped, system apps only when the user set so; the
+    // apps the service lists, which the screens stop, and the new apps it stops are of the one rule, XApp.stopsAutomatically
     @Test
     public void newSystemAppIsStoppedOnlyWhenSet() {
-        assertTrue(ReceiverPackage.stopsAutomatically(0, null));
-        assertFalse(ReceiverPackage.stopsAutomatically(0, "false"));
-        assertFalse(ReceiverPackage.stopsAutomatically(ApplicationInfo.FLAG_SYSTEM, null));
-        assertFalse(ReceiverPackage.stopsAutomatically(ApplicationInfo.FLAG_UPDATED_SYSTEM_APP, null));
-        assertTrue(ReceiverPackage.stopsAutomatically(ApplicationInfo.FLAG_SYSTEM, "true"));
-        assertFalse(ReceiverPackage.stopsAutomatically(ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_PERSISTENT, "true"));
+        assertTrue(XApp.stopsAutomatically(0, PACKAGE, null));
+        assertFalse(XApp.stopsAutomatically(0, PACKAGE, "false"));
+        assertFalse(XApp.stopsAutomatically(ApplicationInfo.FLAG_SYSTEM, PACKAGE, null));
+        assertFalse(XApp.stopsAutomatically(ApplicationInfo.FLAG_UPDATED_SYSTEM_APP, PACKAGE, null));
+        assertTrue(XApp.stopsAutomatically(ApplicationInfo.FLAG_SYSTEM, PACKAGE, "true"));
+        assertFalse(XApp.stopsAutomatically(ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_PERSISTENT, PACKAGE, "true"));
+        // System server is kept running by the system
+        assertFalse(XApp.stopsAutomatically(0, "android", "true"));
+    }
+
+    // What the screen of an app tells (forceStop, from the default or the setting of the user) is the same rule
+    @Test
+    public void listedAppsAndNewAppsAreStoppedAlike() {
+        for (int flags : new int[]{0, ApplicationInfo.FLAG_SYSTEM, ApplicationInfo.FLAG_UPDATED_SYSTEM_APP,
+                ApplicationInfo.FLAG_PERSISTENT, ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_PERSISTENT})
+            for (String setting : new String[]{null, "true", "false"}) {
+                XApp app = new XApp();
+                app.packageName = PACKAGE;
+                app.persistent = XApp.isPersistent(flags, PACKAGE);
+                app.system = XApp.isSystem(flags);
+                // As XProvider.getApps makes it: the default, then the setting
+                app.forceStop = (setting == null ? XApp.stopsAutomatically(flags, PACKAGE, null) : Boolean.parseBoolean(setting));
+                assertEquals(flags + " " + setting, XApp.stopsAutomatically(flags, PACKAGE, setting), app.stopsAutomatically());
+            }
     }
 }

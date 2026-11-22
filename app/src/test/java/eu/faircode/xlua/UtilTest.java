@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 // Lists separated by commas, like the collections, the excluded packages and the types of parameters
@@ -45,6 +46,40 @@ public class UtilTest {
     public void collections() {
         assertEquals(Collections.singletonList(Util.COLLECTION_DEFAULT), Util.parseCollection(null));
         assertEquals(Arrays.asList("Privacy", "Fif"), Util.parseCollection("Privacy, Fif"));
+    }
+
+    // A file chosen by the user is read up to a size, an error says what to do beyond it; a stream of an asset is not limited
+    @Test
+    public void filesAreReadUpToTheirLimit() throws Exception {
+        byte[] text = "{\"format\": 1, \"x\": \"\u00e9\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals(new String(text, java.nio.charset.StandardCharsets.UTF_8),
+                Util.readText(new java.io.ByteArrayInputStream(text), text.length));
+        assertEquals("", Util.readText(new java.io.ByteArrayInputStream(new byte[0]), 0));
+        try {
+            Util.readText(new java.io.ByteArrayInputStream(text), text.length - 1);
+            fail();
+        } catch (Util.FileTooLargeException expected) {
+        }
+        // Past the limit in the last of many reads, and without the whole file ever being read
+        java.io.InputStream endless = new java.io.InputStream() {
+            long read = 0;
+
+            @Override
+            public int read() {
+                read++;
+                if (read > 10L * Util.MAX_FILE)
+                    throw new AssertionError("Read past the limit");
+                return 'x';
+            }
+        };
+        try {
+            Util.readText(endless, Util.MAX_FILE);
+            fail();
+        } catch (Util.FileTooLargeException expected) {
+        }
+        // The limit is for a backup, not a script of the app, which has none
+        assertEquals(1, Util.readText(new java.io.ByteArrayInputStream(new byte[]{'x'})).length());
+        assertTrue(Util.MAX_FILE > 8 * 1024 * 1024);
     }
 
     // Android 13 and later ask the package manager with typed flags, earlier versions with an int; with no package manager

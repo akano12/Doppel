@@ -65,7 +65,7 @@ public class ApplicationEx extends Application {
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "Create version=" + BuildConfig.VERSION_NAME);
-        Scope.init();
+        Scope.init(this);
         applyTheme(getPreferences(this).getString(PREF_THEME, null));
         LauncherIcons.register(this);
     }
@@ -85,9 +85,9 @@ public class ApplicationEx extends Application {
         // Calls into system server, so not on the main thread
         static Colors get(Context context) {
             return new Colors(
-                    Data.getSetting(context, "global", "theme"),
-                    Data.getSetting(context, "global", "palette"),
-                    Data.getSettingBoolean(context, "global", "black"));
+                    Data.getSetting(context, Data.GLOBAL, Data.THEME),
+                    Data.getSetting(context, Data.GLOBAL, Data.PALETTE),
+                    Data.getSettingBoolean(context, Data.GLOBAL, Data.BLACK));
         }
     }
 

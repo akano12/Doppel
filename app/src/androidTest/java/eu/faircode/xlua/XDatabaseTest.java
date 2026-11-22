@@ -169,18 +169,23 @@ public class XDatabaseTest {
         });
     }
 
-    // Android deletes a corrupt database: a new one opens, and it is known, so the user can be told
+    // Android deletes a corrupt database: a new one opens, and it is known, so the user can be told; a copy of the corrupt
+    // one stays next to it
     @Test
     public void corruptFileStartsEmptyAndIsKnown() throws Throwable {
         try (FileOutputStream out = new FileOutputStream(file)) {
             for (int i = 0; i < 1000; i++)
                 out.write("this is not a database".getBytes(StandardCharsets.UTF_8));
         }
+        long size = file.length();
 
         XDatabase.lost = false;
         db = XDatabase.open(file);
         assertTrue(XDatabase.lost);
         XDatabase.lost = false;
+        File[] copies = file.getParentFile().listFiles((dir, name) -> name.startsWith(file.getName() + ".corrupt-"));
+        assertEquals(1, copies.length);
+        assertEquals(size, copies[0].length());
 
         assertTrue(db.isOpen());
         db.read(d -> {

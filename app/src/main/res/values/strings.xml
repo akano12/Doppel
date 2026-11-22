@@ -143,8 +143,8 @@
     <string name="title_restore_stopped">Stopped to apply the restrictions: %1$s</string>
     <string name="title_restore_reboot">Restart the device to apply the restrictions of: %1$s</string>
     <string name="msg_restore_sure">Restore settings, custom definitions and restrictions from this backup? Existing values with the same names are replaced.</string>
-    <string name="msg_restore_scripts">These definitions come with scripts, which run inside the apps they restrict, with the rights of those apps. Restore only backups you trust.%1$s</string>
-    <string name="msg_restore_android">This backup restricts Android itself, which can cause a bootloop.</string>
+    <string name="msg_restore_scripts">These definitions come with scripts, which run inside the apps they restrict, with the rights of those apps; restricting Android itself runs them inside system server, with the rights of the system. Restore only backups you trust.%1$s</string>
+    <string name="msg_restore_android">This backup restricts Android itself. The scripts of the definitions which restrict it run inside system server, with the rights of the system, and can read all data of the device, or cause a bootloop. Restore only backups you trust.</string>
     <string name="msg_error">Error: %1$s</string>
 
     <string name="msg_no_service">Module not running or updated</string>
@@ -154,7 +154,7 @@
     <string name="msg_data_lost">Doppel\'s data was damaged and deleted</string>
     <string name="msg_data_lost_hint">Apps are no longer restricted. Restore a backup to get your settings back.</string>
     <string name="msg_data_failed">Doppel could not load its data</string>
-    <string name="msg_data_failed_hint">Apps started meanwhile are not restricted. The system log tells why.</string>
+    <string name="msg_data_failed_hint">Restricted apps which start now run without their restrictions, and keep doing so until they are started again after the data loads. The system log tells why.</string>
     <string name="msg_no_browser">No browser available to open link</string>
     <string name="msg_no_picker">No app available to pick a file</string>
 
@@ -396,7 +396,7 @@
     <string name="title_hook_unavailable">Not on this Android</string>
     <string name="title_no_custom_hooks">No custom definitions</string>
     <string name="msg_no_hooks_file">This file has no hook definitions</string>
-    <string name="msg_import_replaces">These definitions replace built-in definitions in all apps which have them, with their own scripts. Removing them restores the built-in ones.%1$s</string>
+    <string name="msg_import_replaces">These definitions replace built-in definitions in all apps which have them, also in apps which use them already and in Android itself (system server, where their scripts run with the rights of the system), with their own scripts. Removing them restores the built-in ones.%1$s</string>
     <string name="msg_import_existing">These definitions exist already. Importing replaces them, with their scripts.%1$s</string>
     <string name="title_restore_replaced">Built-in definitions replaced by custom ones: %1$s</string>
     <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
@@ -680,4 +680,11 @@
 
     <string name="channel_alerts">Doppel new apps and errors</string>
     <string name="channel_usage">Doppel restrictions</string>
+
+    <!-- Service and data layer: the module of the service, files which are too large, restores which fail -->
+    <string name="msg_module_version">The module in system server is of version %1$d, this app is of version %2$d. Restart the device to load the new module.</string>
+    <string name="msg_file_too_large">This file is larger than %1$d MB, which Doppel does not read</string>
+    <string name="msg_unhooked">Restrictions not applied</string>
+    <string name="msg_restore_undone">The restore failed and was undone, nothing was changed: %1$s</string>
+    <string name="msg_restore_undone_partly">The restore failed and could only be undone in part (not put back: %1$d): %2$s</string>
 </resources>

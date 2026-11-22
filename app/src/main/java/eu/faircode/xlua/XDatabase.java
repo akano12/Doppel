@@ -28,10 +28,14 @@ import android.os.Environment;
 import android.os.Process;
 import android.util.Log;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +49,53 @@ class XDatabase {
     // Android deleted a corrupt database, with all restrictions: the user has to hear about it, see XProvider.loadData
     static volatile boolean lost = false;
 
+    // A corrupt database is deleted by Android and a new one made, with a copy of the corrupt one kept for the user to have
+    // looked at or repaired, the last few of them
     private static final DatabaseErrorHandler ON_CORRUPTION = db -> {
         Log.e(TAG, "Database corrupt, deleted: " + db.getPath());
         lost = true;
+        keepCorrupt(new File(db.getPath()), System.currentTimeMillis());
         new DefaultDatabaseErrorHandler().onCorruption(db);
     };
+
+    // How many copies of corrupt databases stay
+    static final int KEPT_CORRUPT = 2;
+    private static final String CORRUPT = ".corrupt-";
+
+    // A copy of a database file and its write-ahead log, which can hold rows still, next to it, named with the time, before
+    // Android deletes them; the older copies beyond KEPT_CORRUPT go. A copy which fails is logged, it does not keep the new
+    // database from being made.
+    static void keepCorrupt(File file, long time) {
+        try {
+            File copy = new File(file.getPath() + CORRUPT + time);
+            Files.copy(file.toPath(), copy.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            File wal = new File(file.getPath() + "-wal");
+            if (wal.exists())
+                Files.copy(wal.toPath(), new File(copy.getPath() + "-wal").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Log.i(TAG, "Corrupt database kept: " + copy);
+
+            // The newest first, by the time in the name
+            File[] kept = file.getParentFile().listFiles((dir, name) ->
+                    name.startsWith(file.getName() + CORRUPT) && !name.endsWith("-wal"));
+            if (kept != null) {
+                Arrays.sort(kept, (a, b) -> Long.compare(corruptTime(b, file), corruptTime(a, file)));
+                for (int i = KEPT_CORRUPT; i < kept.length; i++) {
+                    kept[i].delete();
+                    new File(kept[i].getPath() + "-wal").delete();
+                }
+            }
+        } catch (Throwable ex) {
+            Log.w(TAG, "Corrupt database not kept: " + ex);
+        }
+    }
+
+    private static long corruptTime(File copy, File file) {
+        try {
+            return Long.parseLong(copy.getName().substring((file.getName() + CORRUPT).length()));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
 
     interface Operation<T> {
         T run(SQLiteDatabase db) throws Throwable;
@@ -171,7 +217,7 @@ class XDatabase {
 
     // Built-in hook names renamed by this and former versions: old name, new name, see upgrade and Backup.renamed
     static final String[][] RENAMED = new String[][]{
-            // The NMEA listener of GpsStatus still works on Android 8.1 and 9
+            // The NMEA listener of GpsStatus registers on Android 9 only, Android 10 and later return false
             {"LocationManager.addNmeaListener5", "LocationManager.addNmeaListener27"},
             // Geofences get their fake region where they leave the app, so the app reads back the region it set
             {"Geofence$Builder.setCircularRegion", "GeofencingRequest.writeToParcel"},
@@ -475,7 +521,8 @@ class XDatabase {
         }
     }
 
-    // For the test of the migrations, see XDatabaseTest
+    // For the test of the migrations, see XDatabaseTest; the service never closes its database, Android does when it is corrupt
+    @VisibleForTesting
     void close() {
         db.close();
     }

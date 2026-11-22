@@ -19,6 +19,7 @@
 
 package eu.faircode.xlua;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -28,8 +29,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Process;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
@@ -41,7 +44,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,6 +63,7 @@ final class XNotify {
     private static final String TAG_PREFIX = "xlua_";
     private static final String TAG_NEW_APP = TAG_PREFIX + "new_app";
     private static final String TAG_EXCEPTION = TAG_PREFIX + "exception";
+    private static final String TAG_UNHOOKED = TAG_PREFIX + "unhooked";
     private static final String TAG_USAGE = TAG_PREFIX + "use_"; // + group
     private static final String TAG_DATA_LOST = TAG_PREFIX + "data_lost";
     private static final String TAG_DATA_FAILED = TAG_PREFIX + "data_failed";
@@ -98,9 +102,40 @@ final class XNotify {
         resources = context.getPackageManager().getResourcesForApplication(BuildConfig.APPLICATION_ID);
     }
 
+    // The notification of an app is updated at most this often, per tag: a hook which notifies on each use, or an app which
+    // reports in a loop, would else keep the notification service of system server busy, which does not limit the
+    // notifications of system server; the update says the same each time
+    static final long MIN_INTERVAL = 5000L;
+    // By the time of the last update of each tag of each app, which are as many as apps are there and groups they use
+    // shortcut: cleared when it grows past MAX_TRACKED, so a few updates come early then; upgrade to removing the entries of
+    // removed apps if it ever grows that much
+    private static final Map<String, Long> updated = new ConcurrentHashMap<>();
+    static final int MAX_TRACKED = 8192;
+
+    // Whether a notification may be updated now (ms of a clock which does not go back); counts as the update
+    static boolean due(Map<String, Long> updated, String key, long now) {
+        if (updated.size() > MAX_TRACKED)
+            updated.clear();
+        boolean[] due = {false};
+        updated.compute(key, (k, last) -> {
+            if (last == null || now - last >= MIN_INTERVAL || now < last) {
+                due[0] = true;
+                return now;
+            }
+            return last;
+        });
+        return due[0];
+    }
+
+    private static boolean due(int userid, int uid, String tag) {
+        return due(updated, userid + ":" + uid + ":" + tag, SystemClock.elapsedRealtime());
+    }
+
     // An app used a restricted function; hooks which notify on each use update the notification without alerting
     static void notifyUsage(Context context, int userid, int uid, String packageName, String group, String hookid)
             throws Throwable {
+        if (!due(userid, uid, TAG_USAGE + group))
+            return;
         context = getSettingsContext(context);
         Resources resources = getResources(context);
         Notification.Builder builder = getBuilder(context, false);
@@ -116,6 +151,8 @@ final class XNotify {
 
     // A hook of an app failed
     static void notifyException(Context context, int userid, int uid, String packageName, String hookid) throws Throwable {
+        if (!due(userid, uid, TAG_EXCEPTION))
+            return;
         context = getSettingsContext(context);
         Resources resources = getResources(context);
         Notification.Builder builder = getBuilder(context, true);
@@ -126,6 +163,22 @@ final class XNotify {
         builder.setContentText(getLabel(context, packageName));
         builder.setContentIntent(getAppIntent(context, uid, packageName));
         notifyAsUser(context, TAG_EXCEPTION, uid, builder.build(), userid);
+    }
+
+    // A restricted app ran with its real values, because the service did not answer when it started or runs another version of
+    // the module, see XProvider.ENGINE_HOOK; the reason is kept in the service
+    static void notifyUnhooked(Context context, int userid, int uid, String packageName) throws Throwable {
+        if (!due(userid, uid, TAG_UNHOOKED))
+            return;
+        context = getSettingsContext(context);
+        Resources resources = getResources(context);
+        Notification.Builder builder = getBuilder(context, true);
+        builder.setSmallIcon(android.R.drawable.ic_dialog_alert);
+        builder.setOnlyAlertOnce(true);
+        builder.setContentTitle(resources.getString(R.string.msg_unhooked));
+        builder.setContentText(getLabel(context, packageName));
+        builder.setContentIntent(getAppIntent(context, uid, packageName));
+        notifyAsUser(context, TAG_UNHOOKED, uid, builder.build(), userid);
     }
 
     // The database was corrupt and is gone (lost), so no app is restricted anymore, which looks like a fresh install;
@@ -350,6 +403,7 @@ final class XNotify {
 
     // Notifications of system server of any user on the channels of Doppel, also the summary which Android posts to group
     // them, which has the channel of one of them
+    @SuppressLint("NewApi") // StatusBarNotification.getUid is a hidden public method on Android 9, and this runs in system server
     private static boolean isOwn(StatusBarNotification sbn) {
         return (Util.getAppId(sbn.getUid()) == Process.SYSTEM_UID && isOwnChannel(sbn.getNotification().getChannelId()));
     }
@@ -464,14 +518,17 @@ final class XNotify {
 
     // Opens the restrictions of the app, on top of the screens open in the task of Doppel, like an editor with changes
     // which are not saved: the main screen would only bring the task to the front, being the root of the task.
-    // System server may start the screen, which is not exported. One pending intent per app, since apps can share a uid.
+    // System server may start the screen, which is not exported. One pending intent per app: Android tells them apart by
+    // the request code, here the uid, which no other app of the user has, and by the data of the intent, here the package,
+    // not by its extras, since apps can share a uid, where a code of a hash of both could be the one of another app.
     private static PendingIntent getAppIntent(Context context, int uid, String packageName) {
         Intent app = new Intent()
                 .setClassName(BuildConfig.APPLICATION_ID, ActivityApp.class.getName())
+                .setData(Uri.fromParts("package", packageName, null))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(ActivityApp.EXTRA_PACKAGE, packageName)
                 .putExtra(ActivityApp.EXTRA_UID, uid);
-        return PendingIntent.getActivity(context, Objects.hash(packageName, uid), app,
+        return PendingIntent.getActivity(context, uid, app,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 

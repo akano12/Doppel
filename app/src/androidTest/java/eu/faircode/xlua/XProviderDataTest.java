@@ -78,14 +78,20 @@ public class XProviderDataTest {
     @Test
     public void reportsOfTheCallerOnly() {
         Map<String, XHook> hooks = hooks(hook("A", "G"));
-        Bundle own = report(UID, "A", "use", new Bundle());
-        Bundle other = report(UID + 1, "A", "use", new Bundle());
+        // A use the engine sends restricted, or failed: one which did not restrict would let the app clear its restriction
+        // from the log
+        Bundle restricted = new Bundle();
+        restricted.putInt("restricted", 1);
+        Bundle own = report(UID, "A", "use", restricted);
+        Bundle other = report(UID + 1, "A", "use", restricted);
         Bundle invalid = report(UID, "A", "use", null);
+        Bundle unrestricted = report(UID, "A", "use", new Bundle());
 
         assertEquals(1, XProvider.Report.all(Collections.singletonList(own), UID, hooks).size());
         assertThrows(SecurityException.class, () -> XProvider.Report.all(Arrays.asList(own, other), UID, hooks));
         assertThrows(SecurityException.class, () -> XProvider.Report.all(Arrays.asList(other, own), UID, hooks));
         assertThrows(IllegalArgumentException.class, () -> XProvider.Report.all(Arrays.asList(own, invalid), UID, hooks));
+        assertThrows(IllegalArgumentException.class, () -> XProvider.Report.all(Arrays.asList(own, unrestricted), UID, hooks));
     }
 
     // The text of a report is limited; a failing hook is notified once, until the reset of the next start
@@ -117,6 +123,52 @@ public class XProviderDataTest {
         XProvider.Report none = write(report(UID, "B", "use", data), hooks);
         assertNull(none.used);
         assertFalse(none.firstError);
+    }
+
+    // The engine tells that an app ran without its hooks with the hook id xlua, which has no assignment: only an app which
+    // has assignments gets it kept, in the settings of the service, never in an assignment, and the report is of the
+    // engine only: an install with a text
+    @Test
+    public void engineReportsOfAnAssignedAppAreKept() throws Throwable {
+        Map<String, XHook> hooks = hooks(hook("A", "G"));
+        db.write(d -> {
+            assign(d, PKG, UID, id("A"), -1);
+            return null;
+        });
+        Bundle data = new Bundle();
+        data.putString("exception", "The app ran with its real values");
+        XProvider.Report first = write(engineReport(UID, "install", data), hooks);
+        assertTrue(first.engine);
+        assertFalse(first.firstError);
+        assertFalse(first.notifiesUse());
+        assertEquals(Collections.singletonList("-1:engine:0:" + PKG + "=The app ran with its real values"),
+                rows("SELECT user || ':' || category || ':' || name || '=' || value FROM setting"));
+        // No row of the hook in the assignments, which would show in backups and make the app answered
+        assertEquals(Collections.singletonList(id("A")), rows("SELECT hook FROM assignment"));
+
+        // The last reason is kept, and a text is limited
+        data.putString("exception", repeat(20000));
+        write(engineReport(UID, "install", data), hooks);
+        assertEquals(Collections.singletonList(Integer.toString(16384 + 1)), rows("SELECT length(value) FROM setting"));
+
+        // An app without assignments, like another package of the uid, has nothing kept
+        Bundle other = engineReport(UID, "install", data);
+        other.putString("packageName", "other.app");
+        XProvider.Report none = write(other, hooks);
+        assertFalse(none.engine);
+        assertEquals(Collections.singletonList("0:" + PKG), rows("SELECT name FROM setting"));
+
+        // Only an install with a text, of the caller
+        Bundle use = engineReport(UID, "use", data);
+        assertThrows(IllegalArgumentException.class, () -> XProvider.Report.all(Collections.singletonList(use), UID, hooks));
+        assertThrows(IllegalArgumentException.class, () -> XProvider.Report.all(
+                Collections.singletonList(engineReport(UID, "install", new Bundle())), UID, hooks));
+        Bundle number = new Bundle();
+        number.putInt("exception", 1);
+        assertThrows(IllegalArgumentException.class, () -> XProvider.Report.all(
+                Collections.singletonList(engineReport(UID, "install", number)), UID, hooks));
+        assertThrows(SecurityException.class, () -> XProvider.Report.all(
+                Collections.singletonList(engineReport(UID + 1, "install", data)), UID, hooks));
     }
 
     // With notifications on, the first restricted use of a group is notified, the next one not
@@ -199,14 +251,21 @@ public class XProviderDataTest {
             setting(d, 10, PKG, "value.email", "c");
             setting(d, 10, "global", "collection", "Privacy");
             setting(d, -1, "service", "builtins_enabled", "x");
+            // What the engine told of apps, see Report
+            setting(d, -1, "engine", "0:" + PKG, "x");
+            setting(d, -1, "engine", "0:kept.app", "x");
+            setting(d, -1, "engine", "10:" + PKG, "x");
+            setting(d, -1, "engine", "1:" + PKG, "x");
 
             XProvider.removeData(d, Collections.singletonList(new String[]{PKG, Integer.toString(UID)}),
                     Collections.singletonList(10));
             return null;
         });
         assertEquals(Arrays.asList("kept.app:" + (UID + 1)), rows("SELECT package || ':' || uid FROM assignment"));
-        assertEquals(Arrays.asList("-1:service", "0:global", "0:kept.app"),
-                rows("SELECT user || ':' || category FROM setting ORDER BY user, category"));
+        // The app and the user are gone with what the engine told of them; the user 1 is not the user 10 nor 1x
+        assertEquals(Arrays.asList("-1:engine:0:kept.app", "-1:engine:1:" + PKG, "-1:service:builtins_enabled",
+                        "0:global:collection", "0:kept.app:value.email"),
+                rows("SELECT user || ':' || category || ':' || name FROM setting ORDER BY user, category, name"));
     }
 
     // The secret of the default Android ID is made once and read again after a restart of the service, also after
@@ -308,6 +367,12 @@ public class XProviderDataTest {
         args.putString("event", event);
         args.putLong("time", 5);
         args.putBundle("data", data);
+        return args;
+    }
+
+    private static Bundle engineReport(int uid, String event, Bundle data) {
+        Bundle args = report(uid, "A", event, data);
+        args.putString("hook", XProvider.ENGINE_HOOK);
         return args;
     }
 

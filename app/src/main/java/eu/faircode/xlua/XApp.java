@@ -20,6 +20,7 @@
 
 package eu.faircode.xlua;
 
+import android.content.pm.ApplicationInfo;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.text.TextUtils;
@@ -48,7 +49,26 @@ class XApp implements Parcelable {
 
     // Stopped when its restrictions or values change; persistent apps restart with the device only
     boolean stopsAutomatically() {
-        return (this.forceStop && !this.persistent);
+        return stopsAutomatically(this.persistent, this.system, Boolean.toString(this.forceStop));
+    }
+
+    // The one rule of automatic stops, for the apps the service lists and for the new apps it stops: never a persistent
+    // app and, unless the user set so (the setting forcestop of the app, null when not set), no system app
+    static boolean stopsAutomatically(boolean persistent, boolean system, String forceStop) {
+        return !persistent && (forceStop == null ? !system : Boolean.parseBoolean(forceStop));
+    }
+
+    // From the flags of an application: persistent also is system server, which the system keeps running
+    static boolean stopsAutomatically(int flags, String packageName, String forceStop) {
+        return stopsAutomatically(isPersistent(flags, packageName), isSystem(flags), forceStop);
+    }
+
+    static boolean isPersistent(int flags, String packageName) {
+        return ((flags & ApplicationInfo.FLAG_PERSISTENT) != 0 || "android".equals(packageName));
+    }
+
+    static boolean isSystem(int flags) {
+        return ((flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
     }
 
     // The name shown, the package name when the app has no label

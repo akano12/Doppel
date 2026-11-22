@@ -84,20 +84,51 @@ class Util {
 
     // All text of a stream, which is not closed
     static String readText(InputStream is) throws IOException {
+        return readText(is, Long.MAX_VALUE);
+    }
+
+    // The largest file chosen by the user which is read: a backup is some hundreds of KB, even with all custom definitions
+    static final long MAX_FILE = 32L * 1024 * 1024;
+
+    // The file is larger than what is read; the message is for the user, see Ui.error
+    static class FileTooLargeException extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        FileTooLargeException(String message) {
+            super(message);
+        }
+
+        @Override
+        public String toString() {
+            return getMessage();
+        }
+    }
+
+    // All text of a stream of at most max bytes, which is not closed
+    static String readText(InputStream is, long max) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
         int length;
-        while ((length = is.read(buffer)) > 0)
+        while ((length = is.read(buffer)) > 0) {
+            if (bos.size() + length > max)
+                throw new FileTooLargeException(null);
             bos.write(buffer, 0, length);
+        }
         return bos.toString(StandardCharsets.UTF_8.name());
     }
 
-    // All text of a file chosen by the user, without the byte order mark which some editors write
+    // All text of a file chosen by the user, without the byte order mark which some editors write; a file larger than
+    // MAX_FILE is refused, else the reading fills the memory of the app
     static String readText(Context context, Uri uri) throws IOException {
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
             if (is == null)
                 throw new IOException("Cannot open " + uri);
-            String text = readText(is);
+            String text;
+            try {
+                text = readText(is, MAX_FILE);
+            } catch (FileTooLargeException ex) {
+                throw new FileTooLargeException(context.getString(R.string.msg_file_too_large, MAX_FILE / (1024 * 1024)));
+            }
             return (text.startsWith("\uFEFF") ? text.substring(1) : text);
         }
     }

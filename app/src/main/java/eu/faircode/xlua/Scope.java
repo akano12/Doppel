@@ -19,10 +19,16 @@
 
 package eu.faircode.xlua;
 
+import android.app.Application;
 import android.util.Log;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.libxposed.service.XposedService;
@@ -33,24 +39,48 @@ import io.github.libxposed.service.XposedServiceHelper;
 // service library in the manifest; only a modern framework (the libxposed API) has it, so
 // without one everything here is a no-op and the toggle is hidden (see ActivityApp). All calls but init are binder
 // calls, not on the main thread.
+// The scope is also told to the service in system server, which answers the apps with assignments only when they are in it
+// (see XProvider.answers): when the framework connects, which is when the manager starts, after each change made here,
+// and when a screen asks whether an app is in it, which catches a change made in the framework in the meantime. A scope
+// changed in the framework only, with no screen of Doppel asking, is not known to the service until the manager starts
+// again; an app added that way runs without hooks until then. A framework without the service, which has no scope to read,
+// never tells it, so the service answers all apps with assignments, as before.
 class Scope {
     private static final String TAG = "XLua.Scope";
 
     // The framework service, set when the framework connects; more than one framework could connect, the first is kept
     private static final AtomicReference<XposedService> service = new AtomicReference<>();
 
+    // For the calls to the service in system server; the framework serves its delivery of the service in a call of its own,
+    // in which the calls below would block, so they run on a thread of ours
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "XLua.Scope");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static volatile Application application = null;
+    private static volatile Set<String> told = null; // The scope last told to the service, see inScope
+
     interface Callback {
         void done(boolean inScope, String error);
     }
 
     // Registered once at app start (ApplicationEx); a framework without the service never calls back
-    static void init() {
+    static void init(Application app) {
+        application = app;
         try {
             XposedServiceHelper.registerListener(new XposedServiceHelper.OnServiceListener() {
                 @Override
                 public void onServiceBind(XposedService s) {
                     service.compareAndSet(null, s);
-                    Log.i(TAG, "Service bound: " + s.getFrameworkName());
+                    executor.execute(() -> {
+                        try {
+                            Log.i(TAG, "Service bound: " + s.getFrameworkName());
+                        } catch (Throwable ex) {
+                            Log.w(TAG, "getFrameworkName: " + ex);
+                        }
+                        tell(s);
+                    });
                 }
 
                 @Override
@@ -68,16 +98,43 @@ class Scope {
         return service.get() != null;
     }
 
-    // Whether the app is in Doppel's scope
+    // Whether the app is in Doppel's scope; the service is told when it changed
     static boolean inScope(String packageName) {
         XposedService s = service.get();
         if (s == null)
             return false;
         try {
-            return s.getScope().contains(packageName);
+            List<String> scope = s.getScope();
+            if (!new TreeSet<>(scope).equals(told))
+                tell(scope);
+            return scope.contains(packageName);
         } catch (Throwable ex) {
             Log.w(TAG, "getScope: " + ex);
             return false;
+        }
+    }
+
+    // Tell the service the scope of the framework, after a change or when the framework connects; blocking
+    private static void tell(XposedService s) {
+        try {
+            tell(s.getScope());
+        } catch (Throwable ex) {
+            Log.w(TAG, "getScope: " + ex);
+        }
+    }
+
+    private static void tell(Collection<String> scope) {
+        Application app = application;
+        if (app == null)
+            return;
+        try {
+            Set<String> sorted = new TreeSet<>(scope);
+            Data.putScope(app, sorted);
+            told = sorted;
+            Log.i(TAG, "Scope told packages=" + sorted.size());
+        } catch (Throwable ex) {
+            // A service of an older version, which a restart of the device replaces, does not know the call
+            Log.w(TAG, "Scope not told: " + ex);
         }
     }
 
@@ -92,6 +149,8 @@ class Scope {
             s.requestScope(Collections.singletonList(packageName), new XposedService.OnScopeEventListener() {
                 @Override
                 public void onScopeRequestApproved(List<String> approved) {
+                    // Before the caller stops the app, which then starts in the scope
+                    tell(s);
                     callback.done(approved.contains(packageName), null);
                 }
 
@@ -115,5 +174,7 @@ class Scope {
         } catch (Throwable ex) {
             Log.w(TAG, "removeScope: " + ex);
         }
+        // Also when removing failed, which the scope tells
+        tell(s);
     }
 }

@@ -86,7 +86,7 @@ public class ReceiverPackage extends BroadcastReceiver {
             if (Intent.ACTION_PACKAGE_ADDED.equals(intent.getAction())) {
                 if (!replacing && !BuildConfig.APPLICATION_ID.equals(packageName) &&
                         added(context, packageName, uid) &&
-                        Data.getSettingBoolean(context, userid, "global", "notify_new_apps"))
+                        Data.getSettingBoolean(context, userid, Data.GLOBAL, Data.NOTIFY_NEW_APPS))
                     XNotify.notifyNewApp(ctx, userid, uid, packageName);
             } else if (Intent.ACTION_PACKAGE_FULLY_REMOVED.equals(intent.getAction())) {
                 if (BuildConfig.APPLICATION_ID.equals(packageName))
@@ -112,7 +112,7 @@ public class ReceiverPackage extends BroadcastReceiver {
         }
         Data.clearApp(context, packageName, uid, false);
         int userid = Util.getUserId(uid);
-        if (Data.getSettingBoolean(context, userid, "global", "restrict_new_apps")) {
+        if (Data.getSettingBoolean(context, userid, Data.GLOBAL, Data.RESTRICT_NEW_APPS)) {
             Data.initApp(context, packageName, uid);
             // Opened right after it was installed, before this broadcast came, the app runs already without hooks,
             // which it asked for before they were assigned, so it is stopped, like when the user restricts an app;
@@ -126,7 +126,7 @@ public class ReceiverPackage extends BroadcastReceiver {
                         Data.hasAssignments(context, packageName, uid)) {
                     ApplicationInfo ai = Util.getApplicationInfo(
                             Util.createContextForUser(context, userid).getPackageManager(), packageName, 0);
-                    if (stopsAutomatically(ai.flags, Data.getSetting(context, userid, packageName, "forcestop"))) {
+                    if (XApp.stopsAutomatically(ai.flags, packageName, Data.getSetting(context, userid, packageName, Data.FORCE_STOP))) {
                         Log.i(TAG, "Stopping new app pkg=" + packageName + " uid=" + uid);
                         XApp app = new XApp();
                         app.packageName = packageName;
@@ -149,14 +149,6 @@ public class ReceiverPackage extends BroadcastReceiver {
                 if (process.uid == uid && process.pkgList != null && Arrays.asList(process.pkgList).contains(packageName))
                     return true;
         return false;
-    }
-
-    // Like when the user restricts an app: never a persistent app and, unless the user set so, no system app,
-    // see XProvider.getApps and XApp.stopsAutomatically
-    static boolean stopsAutomatically(int flags, String forceStop) {
-        boolean persistent = ((flags & ApplicationInfo.FLAG_PERSISTENT) != 0);
-        boolean system = ((flags & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
-        return !persistent && (forceStop == null ? !system : Boolean.parseBoolean(forceStop));
     }
 
     // Hidden PackageManager.MATCH_ANY_USER (Android 8 and later): installed for any user, which system server may ask;
