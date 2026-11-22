@@ -64,7 +64,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private static final String EXTRA_PACKAGE = "package";
     private static final String EXTRA_LABEL = "label";
 
-    private static final String GLOBAL = "global";
+    private static final String GLOBAL = Data.GLOBAL;
 
     // A recreation, like for another theme, keeps the scope and the values entered, see onSaveInstanceState
     private static final String STATE_CATEGORY = "category";
@@ -252,7 +252,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         View pbLoading = findViewById(R.id.pbLoading);
         if (((LinearLayout) findViewById(R.id.llValues)).getChildCount() == 0)
             pbLoading.setVisibility(View.VISIBLE);
-        Ui.submit(executor, () -> {
+        Ui.submit(() -> {
             final Map<String, String> v = Data.getSettings(context, category);
             final Map<String, String> g = (global ? new HashMap<>() : Data.getSettings(context, GLOBAL));
             final List<XHook> hooks = Data.getHooks(context);

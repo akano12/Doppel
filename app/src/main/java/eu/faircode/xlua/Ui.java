@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -45,6 +46,7 @@ import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.StringRes;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.ColorUtils;
@@ -59,6 +61,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -66,7 +73,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 // Small view helpers shared by the screens
@@ -81,9 +88,13 @@ final class Ui {
         void run() throws Throwable;
     }
 
-    // Run a task on the background thread of a screen, unless the screen is gone; errors go to onError
-    static void submit(ExecutorService executor, Task task, Consumer<Throwable> onError) {
-        submit(executor, () -> {
+    // One thread for the service calls of all screens, so the write of a screen which closes is done before the load
+    // of the screen which shows next, and a recreated screen loads after the write of the one it replaces
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, "XLua.Ui"));
+
+    // Run a task on the background thread of the screens; errors go to onError
+    static void submit(Task task, Consumer<Throwable> onError) {
+        submit(() -> {
             try {
                 task.run();
             } catch (Throwable ex) {
@@ -92,11 +103,26 @@ final class Ui {
         });
     }
 
-    // Not anymore when the screen is gone, which shuts the executor down, also between a check and the submit
-    static void submit(ExecutorService executor, Runnable task) {
-        try {
-            executor.submit(task);
-        } catch (RejectedExecutionException ignored) {
+    static void submit(Runnable task) {
+        EXECUTOR.submit(task);
+    }
+
+    // The text of a file chosen by the user, null when it has more than max bytes, which would else be read whole into
+    // memory; without the byte order mark which some editors write
+    static String readText(Context context, Uri uri, int max) throws IOException {
+        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null)
+                throw new IOException("Cannot open " + uri);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int length;
+            while ((length = is.read(buffer)) > 0) {
+                if (bos.size() + length > max)
+                    return null;
+                bos.write(buffer, 0, length);
+            }
+            String text = bos.toString(StandardCharsets.UTF_8.name());
+            return (text.startsWith("\uFEFF") ? text.substring(1) : text);
         }
     }
 
@@ -299,9 +325,39 @@ final class Ui {
     // Screens which do not load again by themselves keep the action until it is used: Snackbar.LENGTH_INDEFINITE
     static void error(Activity activity, String tag, Throwable ex, Runnable retry, int duration) {
         Log.e(tag, Log.getStackTraceString(ex));
-        if (activity != null)
+        if (activity != null && ex instanceof Data.ModuleVersionException)
+            versionSkew(activity, ex.getMessage());
+        else if (activity != null)
             message(activity, activity.getString(R.string.msg_error, ex.toString()),
                     retry == null ? null : activity.getString(R.string.title_retry), retry, duration);
+    }
+
+    // The dialog of a module of another version in the service, see Data.requireSameVersion
+    private static WeakReference<Dialog> skew = new WeakReference<>(null);
+
+    // A message which stays until it is read, not for seconds like the others: every screen loads through the service,
+    // so each one stays blank until the device is restarted; one dialog for all loads, not one for each
+    private static void versionSkew(Activity started, String message) {
+        started.runOnUiThread(() -> {
+            Activity activity = (started.isDestroyed() ? ActivityBase.front() : started);
+            Dialog shown = skew.get();
+            if (activity == null || activity.isFinishing() || (shown != null && shown.isShowing()))
+                return;
+            AlertDialog dialog = new MaterialAlertDialogBuilder(activity)
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .create();
+            dialog.setOwnerActivity(activity);
+            dialog.show();
+            skew = new WeakReference<>(dialog);
+        });
+    }
+
+    // With the screen it belongs to, else its window leaks; the next load shows it again
+    static void closeVersionSkew(Activity activity) {
+        Dialog shown = skew.get();
+        if (shown != null && shown.getOwnerActivity() == activity)
+            shown.dismiss();
     }
 
     // Start an app, else say that it cannot be started, like most system apps
@@ -364,9 +420,42 @@ final class Ui {
     // Search matching ignoring case: ids are matched with the root locale,
     // labels in the language of the device (like the Turkish dotless i)
     static boolean contains(String text, String query) {
-        return (text != null &&
-                (text.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)) ||
-                        text.toLowerCase(Locale.getDefault()).contains(query.toLowerCase(Locale.getDefault()))));
+        return new Query(query).in(text);
+    }
+
+    // A search text lower-cased once, for the many texts of a list which it is matched with
+    static final class Query {
+        private final String root;
+        private final String local;
+
+        Query(String query) {
+            root = query.toLowerCase(Locale.ROOT);
+            local = query.toLowerCase(Locale.getDefault());
+        }
+
+        boolean in(String text) {
+            return (text != null &&
+                    (text.toLowerCase(Locale.ROOT).contains(root) || text.toLowerCase(Locale.getDefault()).contains(local)));
+        }
+    }
+
+    // The texts of a row of a list, lower-cased once for all searches, instead of for each letter typed
+    static final class Haystack {
+        private final String root;
+        private final String local;
+
+        Haystack(String... texts) {
+            // A line each, so a search text, which has no line break, matches one text only
+            StringBuilder joined = new StringBuilder();
+            for (String text : texts)
+                joined.append(text == null ? "" : text).append('\n');
+            root = joined.toString().toLowerCase(Locale.ROOT);
+            local = joined.toString().toLowerCase(Locale.getDefault());
+        }
+
+        boolean has(Query query) {
+            return (root.contains(query.root) || local.contains(query.local));
+        }
     }
 
     // Text of a search field, after each change
@@ -405,8 +494,8 @@ final class Ui {
     }
 
     // The button names the action, like Delete, so an action which cannot be undone is not confirmed with OK
-    static void areYouSure(Context context, CharSequence question, @StringRes int positive, Runnable onSure) {
-        new MaterialAlertDialogBuilder(context)
+    static AlertDialog areYouSure(Context context, CharSequence question, @StringRes int positive, Runnable onSure) {
+        return new MaterialAlertDialogBuilder(context)
                 .setMessage(question)
                 .setPositiveButton(positive, (dialog, which) -> onSure.run())
                 .setNegativeButton(android.R.string.cancel, null)

@@ -62,6 +62,8 @@ import java.util.function.Consumer;
 // Community hook definitions of the repository (repo/), packaged with the app
 public class ActivityDownloads extends ActivityBase {
     private static final String TAG = "XLua.Downloads";
+    private static final String STATE_OPEN = "open";
+    private static final String STATE_EXPANDED = "expanded";
 
     private static final String REPO = "repo/";
 
@@ -110,12 +112,24 @@ public class ActivityDownloads extends ActivityBase {
     private int updates = 0; // Installed definitions with a newer version in the repository
     private int emptyText = 0; // String resource telling why the list is empty, none when it is not
     private final Set<Integer> expanded = new HashSet<>(); // Entries showing their full description
-    private final AdapterSections.Accordion accordion = new AdapterSections.Accordion(null, null);
+    private AdapterSections.Accordion accordion;
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_OPEN, accordion.getOpen());
+        outState.putIntegerArrayList(STATE_EXPANDED, new ArrayList<>(expanded));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_downloads);
+        // The open collection and the descriptions shown in full stay open when the screen is recreated
+        accordion = new AdapterSections.Accordion(
+                savedInstanceState == null ? null : savedInstanceState.getString(STATE_OPEN), null);
+        if (savedInstanceState != null && savedInstanceState.getIntegerArrayList(STATE_EXPANDED) != null)
+            expanded.addAll(savedInstanceState.getIntegerArrayList(STATE_EXPANDED));
 
         findViewById(R.id.ibBack).setOnClickListener(view -> getOnBackPressedDispatcher().onBackPressed());
         tvSummary = findViewById(R.id.tvSummary);
@@ -180,7 +194,7 @@ public class ActivityDownloads extends ActivityBase {
     private void load() {
         final Context context = getApplicationContext();
         pbLoading.setVisibility(View.VISIBLE);
-        Ui.submit(executor, () -> {
+        Ui.submit(() -> {
             // The list has the time of the update, the definition files, as installed, the rest
             List<Entry> entries = new ArrayList<>();
             JSONArray jlist = new JSONObject(readAsset(context, REPO + "list.json")).getJSONArray("list");
@@ -355,6 +369,7 @@ public class ActivityDownloads extends ActivityBase {
         updatesAdapter.show(updates > 0);
 
         String q = (query == null ? "" : query.trim());
+        final Ui.Query search = new Ui.Query(q);
         List<Object> items = new ArrayList<>();
         String collection = null;
         List<Entry> inCollection = new ArrayList<>();
@@ -367,11 +382,11 @@ public class ActivityDownloads extends ActivityBase {
             if (filter == Filter.UPDATES && state != State.UPDATE)
                 continue;
             if (!q.isEmpty() &&
-                    !Ui.contains(entry.getId(), q) &&
-                    !Ui.contains(entry.group, q) &&
-                    !Ui.contains(Groups.getTitle(this, entry.group), q) &&
-                    !Ui.contains(entry.author, q) &&
-                    !Ui.contains(entry.description, q))
+                    !search.in(entry.getId()) &&
+                    !search.in(entry.group) &&
+                    !search.in(Groups.getTitle(this, entry.group)) &&
+                    !search.in(entry.author) &&
+                    !search.in(entry.description))
                 continue;
             if (!entry.collection.equals(collection)) {
                 addCollection(items, collection, inCollection);

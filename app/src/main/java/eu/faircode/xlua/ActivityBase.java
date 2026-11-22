@@ -45,15 +45,11 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.lang.ref.WeakReference;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
-// Screens are drawn edge-to-edge and share a background thread for service calls
+// Screens are drawn edge-to-edge and share a background thread for service calls, see Ui.submit
 public class ActivityBase extends AppCompatActivity {
     private static final String TAG = "XLua.Base";
-
-    protected final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     // The screen before it was recreated for other colors, see recreateSmoothly
     private static Bitmap snapshot = null;
@@ -160,13 +156,14 @@ public class ActivityBase extends AppCompatActivity {
 
     // Run on the background thread, errors are shown; not anymore when the screen is gone
     protected void run(String tag, Ui.Task task) {
-        Ui.submit(executor, task, ex -> error(tag, ex));
+        if (!isDestroyed())
+            Ui.submit(task, ex -> error(tag, ex));
     }
 
-    // Run on the background thread a task which handles its errors itself, like a load; not anymore when the screen
-    // is gone, since the executor refuses tasks then
+    // Run on the background thread a task which handles its errors itself, like a load; not anymore when the screen is gone
     protected void submit(Runnable task) {
-        Ui.submit(executor, task);
+        if (!isDestroyed())
+            Ui.submit(task);
     }
 
     // Run on the main thread, from a background thread, unless the screen is closing or gone meanwhile,
@@ -231,7 +228,7 @@ public class ActivityBase extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        executor.shutdown();
+        Ui.closeVersionSkew(this);
         super.onDestroy();
     }
 }

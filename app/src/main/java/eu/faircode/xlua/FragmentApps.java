@@ -91,6 +91,7 @@ public class FragmentApps extends FragmentBase {
     private AdapterApp.Sort sort = AdapterApp.Sort.NAME;
     private final Set<AdapterApp.Section> collapsed = EnumSet.noneOf(AdapterApp.Section.class);
     private boolean loaded = false;
+    private int changes = 0; // Changes made here, which a load started before does not show yet, like on the screen of an app
 
     private List<XHook> hooks = new ArrayList<>();
     private List<String> collection = new ArrayList<>();
@@ -134,6 +135,9 @@ public class FragmentApps extends FragmentBase {
 
             @Override
             public void onGroups(AdapterApp.Row row) {
+                // A second tap before the sheet takes the focus would stack another one, which nothing would close
+                if (sheet != null && sheet.isOpen())
+                    return;
                 sheet = GroupsSheet.show(requireActivity(), row.app, hooks, collection, new GroupsSheet.Host() {
                     @Override
                     public void background(Ui.Task task) {
@@ -149,7 +153,7 @@ public class FragmentApps extends FragmentBase {
                             if (after.contains(hook.getId()))
                                 restricted.add(hook.getGroup());
                         }
-                        setAssigned(app, available, after);
+                        assigned(app, available, after);
                         // After the assignments of the sheet, which run in order on the same thread
                         run(TAG, () -> post(FragmentApps.this::load));
                         message(requireActivity(), getResources().getQuantityString(R.plurals.msg_groups_restricted,
@@ -321,6 +325,7 @@ public class FragmentApps extends FragmentBase {
     @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
+        final int started = changes;
         submit(() -> {
             try {
                 List<XHook> hooks = Data.getHooks(context);
@@ -331,6 +336,11 @@ public class FragmentApps extends FragmentBase {
                 Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size());
 
                 post(() -> {
+                    // Changed while loading: the rows show the state before, so load again
+                    if (changes != started) {
+                        load();
+                        return;
+                    }
                     this.hooks = hooks;
                     this.collection = collection;
                     loaded = true;
@@ -411,7 +421,7 @@ public class FragmentApps extends FragmentBase {
             for (XHook hook : available)
                 after.add(hook.getId());
         final String text = getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, app.getLabel());
-        setAssigned(app, available, after);
+        assigned(app, available, after);
         run(TAG, () -> {
             try {
                 change(context, app, available, before, after);
@@ -427,7 +437,7 @@ public class FragmentApps extends FragmentBase {
     private void message(Activity activity, String text, XApp app, Set<String> after, Set<String> before, List<XHook> available) {
         final Context context = activity.getApplicationContext();
         Ui.message(activity, text, activity.getString(R.string.title_undo), () -> {
-            setAssigned(app, available, before);
+            assigned(app, available, before);
             run(TAG, () -> {
                 try {
                     change(context, app, available, after, before);
@@ -436,6 +446,12 @@ public class FragmentApps extends FragmentBase {
                 }
             });
         });
+    }
+
+    // A change made here, which a load that started before it must not undo
+    private void assigned(XApp app, List<XHook> available, Set<String> to) {
+        changes++;
+        setAssigned(app, available, to);
     }
 
     // The assignments of the app as they are after a change, until the reload shows them: another action before,

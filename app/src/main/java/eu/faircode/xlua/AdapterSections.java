@@ -80,6 +80,12 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
             this.onOpen = onOpen;
         }
 
+        // The group open, null at first, to keep it when the screen is recreated
+        @Nullable
+        String getOpen() {
+            return open;
+        }
+
         // Another search or filter opens all groups again
         void reset() {
             closed.clear();

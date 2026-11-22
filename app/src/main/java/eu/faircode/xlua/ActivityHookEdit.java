@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 // Edit a hook definition; saving creates or updates a custom definition
@@ -88,7 +89,7 @@ public class ActivityHookEdit extends ActivityBase {
     private String hookId = null; // Also while loading, null for a new definition which is not saved yet
     private Set<String> builtinIds = null;
     private final Set<String> knownIds = new HashSet<>(); // The definitions a save under another id would replace
-    private String unchanged = null; // What was entered when loaded or saved, see getEntered
+    private String unchanged = null; // What was entered when loaded or saved, see getEntered; not the text, see onSaveInstanceState
     private boolean loading = true; // Until the definition is loaded, saving cannot tell whether it is new
     private boolean refill = false; // The fields are replaced by the definition loading, see delete
 
@@ -270,7 +271,7 @@ public class ActivityHookEdit extends ActivityBase {
         View pbLoading = findViewById(R.id.pbLoading);
         if (loading && id != null)
             pbLoading.setVisibility(View.VISIBLE);
-        Ui.submit(executor, () -> {
+        Ui.submit(() -> {
             // Only an existing definition needs its script, the others none
             List<XHook> hooks = Data.getAllHooks(context, id);
             Set<String> ids = Data.getBuiltinIds(context);
@@ -333,7 +334,8 @@ public class ActivityHookEdit extends ActivityBase {
         unchanged = getEntered();
     }
 
-    // All fields and switches, to tell whether something was changed
+    // All fields and switches, to tell whether something was changed, as a digest: the text has the script, which the
+    // state of its field has already, and the saved state of a screen is limited to about 1 MB
     private String getEntered() {
         StringBuilder sb = new StringBuilder();
         for (EditText et : new EditText[]{etCollection, etGroup, etName, etAuthor, etVersion, etDescription,
@@ -342,7 +344,7 @@ public class ActivityHookEdit extends ActivityBase {
             sb.append(et.getText()).append('\0');
         for (MaterialSwitch sw : new MaterialSwitch[]{swEnabled, swOptional, swUsage, swNotify})
             sb.append(sw.isChecked());
-        return sb.toString();
+        return UUID.nameUUIDFromBytes(sb.toString().getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private static String join(JSONArray jarray) {

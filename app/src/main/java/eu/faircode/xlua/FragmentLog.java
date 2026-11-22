@@ -61,6 +61,7 @@ import java.util.Set;
 // What hooks did: the last restriction of each hook per app, and hooks which failed; of all apps or of one app
 public class FragmentLog extends FragmentBase {
     private static final String TAG = "XLua.Log";
+    private static final String STATE_EXPANDED = "expanded";
 
     private static final String ARG_PACKAGE = "package";
     private static final String ARG_UID = "uid";
@@ -79,6 +80,15 @@ public class FragmentLog extends FragmentBase {
         String oldValue;
         String newValue;
         String exception; // An error instead of a restriction
+        private Ui.Haystack haystack = null;
+
+        // Lower-cased once, since a search matches each entry for each letter typed
+        boolean matches(Context context, Ui.Query query) {
+            if (haystack == null)
+                haystack = new Ui.Haystack(app.label, app.packageName, hook, group,
+                        group == null ? null : Groups.getTitle(context, group));
+            return haystack.has(query);
+        }
     }
 
     private SwipeRefreshLayout swipeRefresh;
@@ -116,6 +126,20 @@ public class FragmentLog extends FragmentBase {
         FragmentLog fragment = new FragmentLog();
         fragment.setArguments(args);
         return fragment;
+    }
+
+    // The entries shown in full stay so when the screen is recreated
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (savedInstanceState != null && savedInstanceState.getStringArrayList(STATE_EXPANDED) != null)
+            expanded.addAll(savedInstanceState.getStringArrayList(STATE_EXPANDED));
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putStringArrayList(STATE_EXPANDED, new ArrayList<>(expanded));
     }
 
     @Override
@@ -308,9 +332,10 @@ public class FragmentLog extends FragmentBase {
         // The overview of what the filter and the search show, which the list below shows too: the restrictions of today
         // by hour, or all restrictions or the errors by day of the last week; with the apps of these and all errors
         String q = (query == null ? "" : query.trim());
+        final Ui.Query search = (q.isEmpty() ? null : new Ui.Query(q));
         List<Entry> counted = new ArrayList<>();
         for (Entry entry : (filter == Filter.ERRORS ? errors : entries))
-            if ((filter != Filter.TODAY || entry.time >= today) && matches(context, entry, q))
+            if ((filter != Filter.TODAY || entry.time >= today) && matches(context, entry, search))
                 counted.add(entry);
         Set<String> packages = new HashSet<>();
         for (Entry entry : counted)
@@ -366,7 +391,7 @@ public class FragmentLog extends FragmentBase {
         // Items are entries under the headers of their days, with the number of entries
         List<Entry> failed = new ArrayList<>();
         for (Entry entry : errors)
-            if (matches(context, entry, q))
+            if (matches(context, entry, search))
                 failed.add(entry);
         List<Object> items = new ArrayList<>();
         if (filter == Filter.ERRORS || (filter == Filter.ALL && !failed.isEmpty())) {
@@ -412,13 +437,8 @@ public class FragmentLog extends FragmentBase {
     }
 
     // Search by app, like the name or the package name, and by restriction, like the group or the hook
-    private static boolean matches(Context context, Entry entry, String q) {
-        return (q.isEmpty() ||
-                Ui.contains(entry.app.label, q) ||
-                Ui.contains(entry.app.packageName, q) ||
-                Ui.contains(entry.hook, q) ||
-                (entry.group != null &&
-                        (Ui.contains(entry.group, q) || Ui.contains(Groups.getTitle(context, entry.group), q))));
+    private static boolean matches(Context context, Entry entry, Ui.Query query) {
+        return (query == null || entry.matches(context, query));
     }
 
     private class Adapter extends AdapterSections<Entry> {

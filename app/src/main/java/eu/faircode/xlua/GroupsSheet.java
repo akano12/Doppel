@@ -82,6 +82,10 @@ final class GroupsSheet {
         return sheet;
     }
 
+    boolean isOpen() {
+        return (dialog != null && dialog.isShowing());
+    }
+
     // Without telling the host, like when its view is gone; what changed is saved already
     void close() {
         if (dialog != null) {

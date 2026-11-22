@@ -28,6 +28,7 @@ import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.accessibility.AccessibilityEvent;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
@@ -35,6 +36,9 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.core.os.BundleCompat;
+import androidx.core.view.AccessibilityDelegateCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 
 // The bar of the tabs, floating as a pill: the selected tab has its icon next to its label and the width it needs,
 // the other tabs are icons, named for screen readers, which share the rest of the width
@@ -67,6 +71,15 @@ public class NavBar extends LinearLayout {
         Menu menu = popup.getMenu();
         for (int i = 0; i < menu.size(); i++)
             addView(createItem(menu.getItem(i)));
+        // The tabs are one list of which one is selected
+        ViewCompat.setAccessibilityDelegate(this, new AccessibilityDelegateCompat() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfoCompat info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setCollectionInfo(AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(
+                        1, getChildCount(), false, AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_SINGLE));
+            }
+        });
         if (menu.size() > 0)
             select(menu.getItem(0).getItemId(), false);
     }
@@ -84,6 +97,17 @@ public class NavBar extends LinearLayout {
         item.setBackgroundResource(R.drawable.bg_nav_item);
         item.setContentDescription(menuItem.getTitle());
         item.setOnClickListener(view -> select(view.getId(), true));
+        // A tab for screen readers, which tell its position, like "tab 2 of 4", with the selection
+        ViewCompat.setAccessibilityDelegate(item, new AccessibilityDelegateCompat() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfoCompat info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                // The class of the tabs of the action bar, which screen readers call a tab
+                info.setClassName("android.app.ActionBar$Tab");
+                info.setCollectionItemInfo(AccessibilityNodeInfoCompat.CollectionItemInfoCompat.obtain(
+                        0, 1, indexOfChild(host), 1, false, host.isSelected()));
+            }
+        });
 
         ImageView icon = new ImageView(context);
         int size = getResources().getDimensionPixelSize(R.dimen.nav_icon_size);
@@ -128,8 +152,14 @@ public class NavBar extends LinearLayout {
                     ? new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, 0)
                     : new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1));
         }
-        if (changed && notify && listener != null)
-            listener.onItemSelected(itemId);
+        if (changed && notify) {
+            // Tells screen readers which tab is shown now
+            View item = findViewById(itemId);
+            if (item != null)
+                item.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED);
+            if (listener != null)
+                listener.onItemSelected(itemId);
+        }
     }
 
     // The selected tab survives recreating the screen, like for other colors

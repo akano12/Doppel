@@ -20,6 +20,7 @@
 package eu.faircode.xlua;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.os.Bundle;
 import android.view.View;
 
@@ -27,12 +28,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 // A tab of the main screen, which reloads its data each time it becomes visible, with a search in its title
 public abstract class FragmentBase extends Fragment {
-    protected final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private volatile boolean destroyed = false;
+
+    // The dialog of the tab which waits for an answer, see track
+    private Dialog dialog = null;
 
     // Set in onCreateView by the tabs with a search, which the view lifecycle below drives
     protected TitleSearch search;
@@ -71,8 +72,32 @@ public abstract class FragmentBase extends Fragment {
 
     @Override
     public void onDestroy() {
-        executor.shutdown();
+        destroyed = true;
         super.onDestroy();
+    }
+
+    // A dialog which asks or tells something is closed with the view, else a recreation, like for dark mode or the
+    // language, leaks its window; the tab shows it again from what it keeps, which closed tells to forget
+    protected void track(Dialog dialog, Runnable closed) {
+        this.dialog = dialog;
+        dialog.setOnDismissListener(d -> {
+            this.dialog = null;
+            closed.run();
+        });
+    }
+
+    protected boolean hasDialog() {
+        return dialog != null;
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (dialog != null) {
+            dialog.setOnDismissListener(null);
+            dialog.dismiss();
+            dialog = null;
+        }
+        super.onDestroyView();
     }
 
     // Run on the main thread, when the view still exists
@@ -100,12 +125,13 @@ public abstract class FragmentBase extends Fragment {
 
     // Run on the background thread, errors are shown; not anymore when the tab is gone, like for a late Undo
     protected void run(String tag, Ui.Task task) {
-        Ui.submit(executor, task, ex -> error(tag, ex));
+        if (!destroyed)
+            Ui.submit(task, ex -> error(tag, ex));
     }
 
-    // Run on the background thread a task which handles its errors itself, like a load; not anymore when the tab
-    // is gone, since the executor refuses tasks then
+    // Run on the background thread a task which handles its errors itself, like a load; not anymore when the tab is gone
     protected void submit(Runnable task) {
-        Ui.submit(executor, task);
+        if (!destroyed)
+            Ui.submit(task);
     }
 }

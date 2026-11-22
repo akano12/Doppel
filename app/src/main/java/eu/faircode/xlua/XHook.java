@@ -380,6 +380,10 @@ public class XHook {
     public void validate() {
         if (isEmpty(this.collection))
             throw new IllegalArgumentException("collection missing");
+        // The enabled collections are one setting of names separated by commas and trimmed, see Util.split,
+        // so such a name could never be enabled
+        if (this.collection.indexOf(',') >= 0 || !this.collection.equals(this.collection.trim()))
+            throw new IllegalArgumentException("collection must not have a comma or spaces around it: " + this.collection);
         if (isEmpty(this.group))
             throw new IllegalArgumentException("group missing");
         if (isEmpty(this.name))

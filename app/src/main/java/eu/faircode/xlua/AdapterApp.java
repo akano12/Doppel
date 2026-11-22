@@ -22,6 +22,8 @@ package eu.faircode.xlua;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -51,6 +53,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 // Apps in sections by what needs attention: apps with a failed hook, new apps without restrictions,
 // apps restricted recently or which restricted something recently, and all apps, also the ones above
@@ -94,6 +98,15 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         long assigned = -1; // Last time a hook was assigned by the user or for a new app
         boolean error;
         boolean partial; // Hooks which are not assigned, also when all groups are restricted
+
+        private Ui.Haystack haystack = null;
+
+        // Lower-cased once, since a search matches each row for each letter typed
+        boolean matches(Ui.Query query) {
+            if (haystack == null)
+                haystack = new Ui.Haystack(app.packageName, app.label);
+            return haystack.has(query);
+        }
 
         static Row summarize(XApp app, List<XHook> hooks, List<String> collection) {
             Row row = new Row();
@@ -247,6 +260,10 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private List<Row> shown = new ArrayList<>();
     private List<Object> items = new ArrayList<>();
     private long bound = 0; // When all rows were last drawn, see apply
+    private int generation = 0; // The last list made, which the diff of an earlier one must not replace
+    // The difference of two lists of thousands of rows takes long, so it is made in the background
+    private static final Executor DIFFER = Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, "XLua.Diff"));
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private Filter filter = Filter.USER;
     private Sort sort = Sort.NAME;
     private String query = null;
@@ -376,6 +393,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             uid = -1;
         }
 
+        final Ui.Query query = new Ui.Query(q);
         List<Row> result = new ArrayList<>();
         for (Row row : all) {
             XApp app = row.app;
@@ -388,8 +406,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 continue;
             if (!q.isEmpty() &&
                     app.uid != uid &&
-                    !Ui.contains(app.packageName, q) &&
-                    !Ui.contains(app.label, q))
+                    !row.matches(query))
                 continue;
             result.add(row);
         }
@@ -399,8 +416,6 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         long now = System.currentTimeMillis();
         // The times of the rows, like 'just now', change by the minute, also when their data does not
         final boolean stale = (now - bound >= DateUtils.MINUTE_IN_MILLIS);
-        if (stale)
-            bound = now;
         Map<Section, List<Row>> sections = new EnumMap<>(Section.class);
         for (Section section : Section.values())
             sections.put(section, new ArrayList<>());
@@ -430,45 +445,61 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
 
         final List<Object> prev = items;
-        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
-            @Override
-            public int getOldListSize() {
-                return prev.size();
-            }
-
-            @Override
-            public int getNewListSize() {
-                return next.size();
-            }
-
-            @Override
-            public boolean areItemsTheSame(int oldPosition, int newPosition) {
-                Object o = prev.get(oldPosition);
-                Object n = next.get(newPosition);
-                if (o instanceof Header && n instanceof Header)
-                    return ((Header) o).section == ((Header) n).section;
-                if (o instanceof Item && n instanceof Item)
-                    return (((Item) o).section == ((Item) n).section && ((Item) o).row.isSame(((Item) n).row));
-                return false;
-            }
-
-            @Override
-            public boolean areContentsTheSame(int oldPosition, int newPosition) {
-                Object o = prev.get(oldPosition);
-                Object n = next.get(newPosition);
-                if (o instanceof Header) {
-                    Header h1 = (Header) o;
-                    Header h2 = (Header) n;
-                    return (h1.count == h2.count && h1.expanded == h2.expanded);
+        final int made = ++generation;
+        // Nothing before or after is made at once, which the empty text of the tab relies on
+        final boolean quick = (prev.isEmpty() || next.isEmpty());
+        (quick ? (Executor) Runnable::run : DIFFER).execute(() -> {
+            DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+                @Override
+                public int getOldListSize() {
+                    return prev.size();
                 }
-                Item i1 = (Item) o;
-                Item i2 = (Item) n;
-                return (!stale && i1.section == i2.section && i1.first == i2.first && i1.last == i2.last &&
-                        i1.row.hasSameContent(i2.row));
-            }
+
+                @Override
+                public int getNewListSize() {
+                    return next.size();
+                }
+
+                @Override
+                public boolean areItemsTheSame(int oldPosition, int newPosition) {
+                    Object o = prev.get(oldPosition);
+                    Object n = next.get(newPosition);
+                    if (o instanceof Header && n instanceof Header)
+                        return ((Header) o).section == ((Header) n).section;
+                    if (o instanceof Item && n instanceof Item)
+                        return (((Item) o).section == ((Item) n).section && ((Item) o).row.isSame(((Item) n).row));
+                    return false;
+                }
+
+                @Override
+                public boolean areContentsTheSame(int oldPosition, int newPosition) {
+                    Object o = prev.get(oldPosition);
+                    Object n = next.get(newPosition);
+                    if (o instanceof Header) {
+                        Header h1 = (Header) o;
+                        Header h2 = (Header) n;
+                        return (h1.count == h2.count && h1.expanded == h2.expanded);
+                    }
+                    Item i1 = (Item) o;
+                    Item i2 = (Item) n;
+                    return (!stale && i1.section == i2.section && i1.first == i2.first && i1.last == i2.last &&
+                            i1.row.hasSameContent(i2.row));
+                }
+            });
+            // Unless a later list was made meanwhile, which has its own diff
+            Runnable show = () -> {
+                if (made != generation)
+                    return;
+                if (stale)
+                    bound = now;
+                items = next;
+                diff.dispatchUpdatesTo(this);
+            };
+            if (quick)
+                show.run();
+            else
+                handler.post(show);
         });
-        items = next;
-        diff.dispatchUpdatesTo(this);
     }
 
     private class HeaderHolder extends RecyclerView.ViewHolder {

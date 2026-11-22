@@ -63,7 +63,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
         // Checking the service is a call into system server, so not on the main thread
         final Context context = getApplicationContext();
-        Ui.submit(executor, () -> {
+        Ui.submit(() -> {
             boolean available = Data.isAvailable(context);
             // The local copies of the colors do not exist yet after an update
             ApplicationEx.Colors colors = (available ? ApplicationEx.Colors.get(context) : null);

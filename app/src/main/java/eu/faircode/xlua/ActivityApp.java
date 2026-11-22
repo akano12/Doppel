@@ -79,7 +79,7 @@ public class ActivityApp extends ActivityBase {
     private static final String STATE_EXPANDED = "expanded";
 
     // Settings of an app which are no fake values, see ActivityValues
-    private static final Set<String> OPTIONS = new HashSet<>(Arrays.asList("forcestop", "notify"));
+    private static final Set<String> OPTIONS = new HashSet<>(Arrays.asList(Data.FORCE_STOP, Data.NOTIFY));
 
     private String packageName;
     private int uid;
@@ -243,7 +243,7 @@ public class ActivityApp extends ActivityBase {
                 }
                 List<XHook> hooks = Data.getAvailable(Data.getHooks(context), app, Data.getCollection(context), null);
                 Map<String, String> settings = Data.getSettings(context, app.packageName);
-                boolean notify = Boolean.parseBoolean(settings.get("notify"));
+                boolean notify = Boolean.parseBoolean(settings.get(Data.NOTIFY));
                 // The fake values of the app itself, the rest come from the values for all apps;
                 // a value and its mode count once
                 Set<String> own = new HashSet<>();
@@ -323,7 +323,7 @@ public class ActivityApp extends ActivityBase {
             changes++;
             run(TAG, () -> {
                 try {
-                    Data.putSettingBoolean(context, app.packageName, "forcestop", checked);
+                    Data.putSettingBoolean(context, app.packageName, Data.FORCE_STOP, checked);
                 } catch (Throwable ex) {
                     // Else the checkbox shows the change which was not stored
                     postUnlessGone(this::load);
@@ -340,7 +340,7 @@ public class ActivityApp extends ActivityBase {
             changes++;
             run(TAG, () -> {
                 try {
-                    Data.putSettingBoolean(context, app.packageName, "notify", checked);
+                    Data.putSettingBoolean(context, app.packageName, Data.NOTIFY, checked);
                 } catch (Throwable ex) {
                     // Else the checkbox shows the change which was not stored
                     postUnlessGone(this::load);

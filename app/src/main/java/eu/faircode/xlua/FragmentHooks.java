@@ -68,6 +68,9 @@ public class FragmentHooks extends FragmentBase {
 
     // The group which shows its hooks, the others show only their row
     private static final String PREF_EXPANDED = "hooks_group";
+    private static final String STATE_IMPORTING = "importing";
+    // Definitions are a few KB each, so a larger file is not one, and reading it whole could run out of memory
+    private static final int MAX_IMPORT = 8 * 1024 * 1024;
 
     private View pbLoading;
     private TextView tvEmpty;
@@ -83,6 +86,7 @@ public class FragmentHooks extends FragmentBase {
     private Set<String> builtinIds = new HashSet<>();
     private List<String> collection = new ArrayList<>();
     private AdapterSections.Accordion accordion;
+    private Uri importing = null; // The file of an import which waits for its confirmation, asked again after a recreation
 
     // The tab shown, which an import reloads when it ends: the screen can be recreated meanwhile, like rotated,
     // and the new tab loaded before the definitions were stored
@@ -170,6 +174,20 @@ public class FragmentHooks extends FragmentBase {
         compact.setMore(this::showMenu);
 
         return view;
+    }
+
+    @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        if (savedInstanceState != null && savedInstanceState.getString(STATE_IMPORTING) != null)
+            importHooks(Uri.parse(savedInstanceState.getString(STATE_IMPORTING)));
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (importing != null)
+            outState.putString(STATE_IMPORTING, importing.toString());
     }
 
     private void showMenu(View anchor) {
@@ -267,15 +285,18 @@ public class FragmentHooks extends FragmentBase {
         String group = null;
         List<XHook> inGroup = new ArrayList<>();
         Context context = requireContext();
+        final Ui.Query search = new Ui.Query(q);
+        // The title of a group is found once, not for each of its hooks
+        Map<String, Ui.Haystack> groupTexts = new HashMap<>();
         for (XHook hook : all) {
             if (!matches(hook))
                 continue;
             // Groups by name and by the title shown, like 'call log' for Get.Call.log
             if (!q.isEmpty() &&
-                    !Ui.contains(hook.getId(), q) &&
-                    !Ui.contains(hook.getGroup(), q) &&
-                    !Ui.contains(Groups.getTitle(context, hook.getGroup()), q) &&
-                    !Ui.contains(hook.getClassName(), q))
+                    !search.in(hook.getId()) &&
+                    !groupTexts.computeIfAbsent(hook.getGroup(),
+                            g -> new Ui.Haystack(g, Groups.getTitle(context, g))).has(search) &&
+                    !search.in(hook.getClassName()))
                 continue;
             if (!hook.getGroup().equals(group)) {
                 addGroup(items, group, inGroup);
@@ -336,7 +357,11 @@ public class FragmentHooks extends FragmentBase {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
         run(TAG, () -> {
-            String text = Util.readText(context, uri);
+            String text = Ui.readText(context, uri, MAX_IMPORT);
+            if (text == null) {
+                Ui.message(activity, activity.getString(R.string.msg_file_too_large, MAX_IMPORT / (1024 * 1024)));
+                return;
+            }
             JSONArray jarray;
             try {
                 jarray = (text.trim().startsWith("[")
@@ -380,8 +405,9 @@ public class FragmentHooks extends FragmentBase {
                         questions.add(getString(R.string.msg_import_replaces, Ui.bullets(preview.replaced)));
                     if (!preview.existing.isEmpty())
                         questions.add(getString(R.string.msg_import_existing, Ui.bullets(preview.existing)));
-                    Ui.areYouSure(activity, TextUtils.join("\n\n", questions),
-                            R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray)));
+                    importing = uri;
+                    track(Ui.areYouSure(activity, TextUtils.join("\n\n", questions),
+                            R.string.menu_import, () -> run(TAG, () -> putImported(activity, jarray))), () -> importing = null);
                 });
         });
     }

@@ -47,6 +47,8 @@ import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 
+import org.json.JSONObject;
+
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +60,7 @@ public class FragmentSettings extends FragmentBase {
 
     // Same order as the chips
     private static final int[] THEME_CHIPS = {R.id.chipThemeSystem, R.id.chipThemeLight, R.id.chipThemeDark};
+    private static final String STATE_RESTORING = "restoring";
     private static final String[] THEMES = {ApplicationEx.THEME_SYSTEM, ApplicationEx.THEME_LIGHT, ApplicationEx.THEME_DARK};
 
     // What the last restore did, shown by load once the restored colors do not recreate the screen anymore,
@@ -84,6 +87,7 @@ public class FragmentSettings extends FragmentBase {
     private List<String> enabled = new ArrayList<>(); // Enabled collections
     private int launcherIcon = -1; // The icon of the launcher, see load and LauncherIcons.getEnabled
     private int changes = 0; // The settings tapped, see put
+    private Uri restoring = null; // The file of a restore which waits for its confirmation, asked again after a recreation
 
     private final ActivityResultLauncher<String> backupLauncher = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("application/json"), uri -> {
@@ -162,11 +166,25 @@ public class FragmentSettings extends FragmentBase {
     }
 
     @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState) {
+        super.onViewStateRestored(savedInstanceState);
+        if (savedInstanceState != null && savedInstanceState.getString(STATE_RESTORING) != null)
+            confirmRestore(Uri.parse(savedInstanceState.getString(STATE_RESTORING)));
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (restoring != null)
+            outState.putString(STATE_RESTORING, restoring.toString());
+    }
+
+    @Override
     protected void load() {
         final Context context = requireContext().getApplicationContext();
         // A switch or theme tapped while this loads is stored after it, so what was read is older than what is shown
         final int before = changes;
-        Ui.submit(executor, () -> {
+        Ui.submit(() -> {
             int version = Data.getVersion(context);
             boolean available = Data.isAvailable(version);
             int icon = LauncherIcons.getEnabled(context);
@@ -189,8 +207,8 @@ public class FragmentSettings extends FragmentBase {
                 known.add(hook.getCollection());
             List<String> enabled = Data.getCollection(context);
             known.addAll(enabled);
-            boolean restrictNew = Data.getSettingBoolean(context, "global", "restrict_new_apps");
-            boolean notifyNew = Data.getSettingBoolean(context, "global", "notify_new_apps");
+            boolean restrictNew = Data.getSettingBoolean(context, Data.GLOBAL, Data.RESTRICT_NEW_APPS);
+            boolean notifyNew = Data.getSettingBoolean(context, Data.GLOBAL, Data.NOTIFY_NEW_APPS);
             ApplicationEx.Colors colors = ApplicationEx.Colors.get(context);
 
             post(() -> {
@@ -199,10 +217,9 @@ public class FragmentSettings extends FragmentBase {
                     ((ActivityBase) requireActivity()).recreateSmoothly();
                     return;
                 }
-                if (restored != null && !ApplicationEx.changesNight(requireActivity(), colors.theme)) {
-                    showRestored(requireActivity(), restored);
-                    restored = null;
-                }
+                // Until it is closed, so also a screen recreated with the dialog open shows it again
+                if (restored != null && !hasDialog() && !ApplicationEx.changesNight(requireActivity(), colors.theme))
+                    track(showRestored(requireActivity(), restored), () -> restored = null);
                 showPalettes(ApplicationEx.getPalette(context));
                 boolean current = (before == changes);
                 swBlack.setOnCheckedChangeListener(null);
@@ -227,12 +244,12 @@ public class FragmentSettings extends FragmentBase {
                 if (current)
                     swRestrictNew.setChecked(restrictNew);
                 swRestrictNew.setOnCheckedChangeListener((button, checked) ->
-                        put("restrict_new_apps", Boolean.toString(checked)));
+                        put(Data.RESTRICT_NEW_APPS, Boolean.toString(checked)));
                 swNotifyNew.setOnCheckedChangeListener(null);
                 if (current)
                     swNotifyNew.setChecked(notifyNew);
                 swNotifyNew.setOnCheckedChangeListener((button, checked) ->
-                        put("notify_new_apps", Boolean.toString(checked)));
+                        put(Data.NOTIFY_NEW_APPS, Boolean.toString(checked)));
                 for (View v : new View[]{llRestrictNew, swRestrictNew, llNotifyNew, swNotifyNew})
                     v.setEnabled(true);
                 Ui.enable(cgTheme, true);
@@ -323,7 +340,7 @@ public class FragmentSettings extends FragmentBase {
         final Context context = requireContext().getApplicationContext();
         final String value = (ApplicationEx.PALETTE_DEFAULT.equals(palette) ? null : palette);
         run(TAG, () -> {
-            Data.putSetting(context, "global", "palette", value);
+            Data.putSetting(context, Data.GLOBAL, Data.PALETTE, value);
             // Remembered also when the screen is gone meanwhile, which then shows the new colors when it is created
             if (ApplicationEx.setPalette(context, value))
                 post(() -> ((ActivityBase) requireActivity()).recreateSmoothly());
@@ -360,7 +377,7 @@ public class FragmentSettings extends FragmentBase {
         changes++;
         run(TAG, () -> {
             try {
-                Data.putSetting(context, "global", name, value);
+                Data.putSetting(context, Data.GLOBAL, name, value);
             } catch (Throwable ex) {
                 // Else the switch or chip shows the change which was not stored
                 post(this::load);
@@ -421,7 +438,9 @@ public class FragmentSettings extends FragmentBase {
     private void confirmRestore(Uri uri) {
         final Activity activity = requireActivity();
         run(TAG, () -> {
-            Backup.Preview preview = Backup.preview(activity, uri);
+            // Read once: the restore applies the file which the question was about
+            JSONObject jroot = Backup.read(activity, uri);
+            Backup.Preview preview = Backup.preview(activity, jroot);
             post(() -> {
                 StringBuilder question = new StringBuilder(getString(R.string.msg_restore_sure));
                 if (!preview.replaced.isEmpty())
@@ -430,21 +449,23 @@ public class FragmentSettings extends FragmentBase {
                     question.append("\n\n").append(getString(R.string.msg_restore_scripts, Ui.bullets(preview.added)));
                 if (preview.android)
                     question.append("\n\n").append(getString(R.string.msg_restore_android));
-                Ui.areYouSure(requireContext(), question, R.string.title_restore, () -> restore(uri));
+                restoring = uri;
+                track(Ui.areYouSure(requireContext(), question, R.string.title_restore, () -> restore(jroot)),
+                        () -> restoring = null);
             });
         });
     }
 
-    private void restore(Uri uri) {
+    private void restore(JSONObject jroot) {
         final Activity activity = requireActivity();
         run(TAG, () -> {
-            restored = Backup.restore(activity, uri);
+            restored = Backup.restore(activity, jroot);
             post(this::load);
         });
     }
 
     // What a restore did, a line each; the lines without anything to say are left out
-    private static void showRestored(Context context, Backup.Result r) {
+    private static AlertDialog showRestored(Context context, Backup.Result r) {
         List<String> lines = new ArrayList<>();
         if (r.version > 0 && r.version != BuildConfig.VERSION_CODE)
             lines.add(context.getString(R.string.title_restore_version, r.version, BuildConfig.VERSION_CODE));
@@ -473,7 +494,7 @@ public class FragmentSettings extends FragmentBase {
         if (!r.reboot.isEmpty())
             lines.add(context.getString(R.string.title_restore_reboot, names(r.reboot)));
 
-        new MaterialAlertDialogBuilder(context)
+        return new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.title_restore_done)
                 .setMessage(TextUtils.join("\n\n", lines))
                 .setPositiveButton(android.R.string.ok, null)

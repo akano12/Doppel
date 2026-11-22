@@ -78,6 +78,16 @@ public class HookCheckTest {
         assertFails(IllegalArgumentException.class, definition().put("name", ""));
     }
 
+    // A name which Util.split reads back as other names can never be enabled
+    @Test
+    public void collectionWithCommaOrSpacesFails() throws Exception {
+        for (String name : new String[]{"my,set", " Custom", "Custom ", "Custom\t"})
+            assertFails(IllegalArgumentException.class, definition().put("collection", name));
+        // The inner space is kept by Util.split
+        ActivityHookEdit.check(definition().put("collection", "My set"));
+        assertEquals(java.util.Collections.singletonList("My set"), Util.split("My set"));
+    }
+
     @Test
     public void emptyClassFails() throws Exception {
         assertFails(IllegalArgumentException.class, definition().put("className", ""));
