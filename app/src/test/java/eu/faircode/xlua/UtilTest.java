@@ -19,15 +19,20 @@
 
 package eu.faircode.xlua;
 
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 // Lists separated by commas, like the collections, the excluded packages and the types of parameters
 public class UtilTest {
+    @Rule
+    public final SdkRule sdk = new SdkRule();
+
     @Test
     public void splitTrimsAndSkipsEmptyItems() {
         assertEquals(Arrays.asList("a", "b c", "d"), Util.split(" a, b c ,,d, "));
@@ -40,5 +45,20 @@ public class UtilTest {
     public void collections() {
         assertEquals(Collections.singletonList(Util.COLLECTION_DEFAULT), Util.parseCollection(null));
         assertEquals(Arrays.asList("Privacy", "Fif"), Util.parseCollection("Privacy, Fif"));
+    }
+
+    // Android 13 and later ask the package manager with typed flags, earlier versions with an int; with no package manager
+    // to answer, the signature of the failed call, in the message of the NullPointerException, shows the branch taken
+    @Test
+    public void packageFlagsAreTypedFromAndroid13() throws Exception {
+        for (int version : new int[]{28, 32, 33, 37}) {
+            sdk.set(version);
+            try {
+                Util.getPackageInfo(null, "app", 0);
+                fail();
+            } catch (NullPointerException ex) {
+                assertEquals(String.valueOf(version), version >= 33, ex.getMessage().contains("PackageInfoFlags"));
+            }
+        }
     }
 }

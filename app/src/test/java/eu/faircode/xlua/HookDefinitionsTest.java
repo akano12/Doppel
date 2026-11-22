@@ -565,6 +565,9 @@ public class HookDefinitionsTest {
     public void repositoryVersionsRaised() throws Exception {
         File root = new File("..").getCanonicalFile();
         Assume.assumeTrue("No git history", git(root, "rev-parse", "--git-dir") != null);
+        // A shallow clone lacks the earlier texts, so nothing would be compared: skip instead of passing vacuously
+        Assume.assumeFalse("Shallow clone, fetch the full history",
+                "true".equals(git(root, "rev-parse", "--is-shallow-repository").trim()));
         Set<String> errors = new TreeSet<>();
         for (Map.Entry<String, JSONObject> entry : repository().entrySet()) {
             String path = "repo/" + entry.getKey();

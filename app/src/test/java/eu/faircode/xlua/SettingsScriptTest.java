@@ -976,7 +976,7 @@ public class SettingsScriptTest {
     }
 
     public static class Wrapper {
-        protected final Rows mCursor;
+        protected Rows mCursor; // not final: scripts set it, which the JDK warns about
 
         Wrapper(Rows cursor) {
             mCursor = cursor;

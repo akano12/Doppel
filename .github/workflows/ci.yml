@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Only the checks that need no device run here. The instrumented tests (app/src/androidTest: database migrations,
+# assignments, backup and restore) need a rooted emulator with LSPosed or Vector and the module enabled, which CI
+# cannot provide: they are run by hand on such an emulator.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The test of the versions of Downloads reads the history of git
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            app/build/reports/tests
+            app/build/reports/lint-results-debug.*

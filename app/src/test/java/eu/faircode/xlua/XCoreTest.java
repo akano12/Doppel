@@ -65,6 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.io.File;
 
 import io.github.libxposed.api.XposedInterface;
@@ -489,7 +490,7 @@ public class XCoreTest {
         IInterface provider = () -> binder;
         IInterface another = Binder::new;
         try {
-            for (int sdk : new int[]{27, 28}) {
+            for (int sdk : new int[]{28}) {
                 XCore.settingsBinder = null;
                 Object[] early = {"app", XProvider.METHOD, "reports", null};
                 XCore.markCall(early, sdk, provider);
@@ -892,7 +893,10 @@ public class XCoreTest {
         assertEquals(Collections.singletonList(self), sent);
         callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
         assertEquals(1, sent.size());
-        Thread.sleep(1100);
+        // Once a second has passed, without waiting for it: the queue was due a second ago
+        Field due = XCore.class.getDeclaredField("due");
+        due.setAccessible(true);
+        due.setLong(core, due.getLong(core) - TimeUnit.SECONDS.toNanos(2));
         callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
         assertEquals(Arrays.asList(self, self), sent);
 

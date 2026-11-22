@@ -39,6 +39,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -158,7 +159,12 @@ public class CommandsBlockedScriptTest {
     private static void assertRefused(String start, String error, IOException ex) {
         String exec = ex.getCause().getMessage();
         assertEquals(start + ": " + exec, ex.getMessage());
-        assertTrue(exec, exec.contains(error));
+        assertTrue(exec, hasErrno(exec, error));
+    }
+
+    // The number of the error, which the JDK words as "error=13" or "error: 13" and the C library names as it likes
+    private static boolean hasErrno(String message, String errno) {
+        return Pattern.compile("(?<!\\d)" + errno + "(?!\\d)").matcher(message).find();
     }
 
     // A path as ProcessImpl.start passes it on to UNIXProcess.forkAndExec, a C string, or null
@@ -181,9 +187,9 @@ public class CommandsBlockedScriptTest {
     public void commandsAreRefused() {
         Assume.assumeTrue(new File("/bin/sh").exists());
         IOException ex = refused(null, "sh", "-c", "getprop");
-        assertRefused("Cannot run program \"sh\"", "Permission denied", ex);
+        assertRefused("Cannot run program \"sh\"", "13", ex);
         assertTrue(ex.getCause() instanceof IOException);
-        assertRefused("Cannot run program \"/bin/sh\"", "Permission denied", refused(null, "/bin/sh", "-c", "id"));
+        assertRefused("Cannot run program \"/bin/sh\"", "13", refused(null, "/bin/sh", "-c", "id"));
     }
 
     // Each program run instead fails with its errno by itself, here on the kernel of the computer running the test,
@@ -191,12 +197,10 @@ public class CommandsBlockedScriptTest {
     @Test
     public void programsRunInsteadFailWithTheirErrno() {
         Assume.assumeTrue(new File("/proc/self/fd").isDirectory());
-        String[][] errors = {{"13", "Permission denied"}, {"2", "No such file or directory"}, {"20", "Not a directory"},
-                {"36", "File name too long"}, {"40", "Too many levels of symbolic links"}};
-        for (String[] error : errors) {
-            String program = globals.get("instead").call(LuaValue.valueOf(Integer.parseInt(error[0]))).tojstring();
+        for (String errno : new String[]{"13", "2", "20", "36", "40"}) {
+            String program = globals.get("instead").call(LuaValue.valueOf(Integer.parseInt(errno))).tojstring();
             IOException ex = assertThrows(IOException.class, () -> new ProcessBuilder(program).start());
-            assertTrue(error[1] + ": " + ex.getMessage(), ex.getMessage().contains(error[1]));
+            assertTrue(ex.getMessage(), hasErrno(ex.getMessage(), errno));
         }
         assertTrue(globals.get("instead").call(LuaValue.valueOf(5)).isnil());
     }
@@ -222,11 +226,11 @@ public class CommandsBlockedScriptTest {
     @Test
     public void missingProgramsDoNotExist() throws Exception {
         for (String[] command : new String[][]{{"no_such_tool_12345"}, {"/nonexistent/bin/getprop", "ro.serialno"}})
-            assertRefused("Cannot run program \"" + command[0] + "\"", "No such file or directory", refused(null, command));
+            assertRefused("Cannot run program \"" + command[0] + "\"", "2", refused(null, command));
         String start = "Cannot run program \"./tool\" (in directory \"" + files.getPath() + "\")";
-        assertRefused(start, "No such file or directory", refused(files, "./tool"));
+        assertRefused(start, "2", refused(files, "./tool"));
         assertTrue(new File(files, "tool").createNewFile());
-        assertRefused(start, "Permission denied", refused(files, "./tool"));
+        assertRefused(start, "13", refused(files, "./tool"));
     }
 
     // ProcessImpl.start and the UNIXProcess constructor, which apps can call by reflection, pass on the exception of
@@ -277,7 +281,7 @@ public class CommandsBlockedScriptTest {
     // file
     @Test
     public void noProgramAndNoDirectoryDoNotExist() throws Exception {
-        assertRefused("Cannot run program \"\"", "No such file or directory", refused(null, ""));
+        assertRefused("Cannot run program \"\"", "2", refused(null, ""));
         assertRefused("Cannot run program \"\" (in directory \"" + files.getPath() + "\")", "No such file or directory",
                 refused(files, ""));
         Assume.assumeTrue(new File("/bin/sh").exists());
@@ -308,7 +312,7 @@ public class CommandsBlockedScriptTest {
         Files.write(log.toPath(), "kept".getBytes());
         ProcessBuilder builder = new ProcessBuilder("sh", "-c", "id").redirectOutput(out)
                 .redirectError(ProcessBuilder.Redirect.appendTo(log));
-        assertRefused("Cannot run program \"sh\"", "Permission denied", refused(builder));
+        assertRefused("Cannot run program \"sh\"", "13", refused(builder));
         assertTrue(out.exists());
         assertEquals("kept", new String(Files.readAllBytes(log.toPath())));
         Files.write(out.toPath(), "old".getBytes());

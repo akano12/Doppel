@@ -996,7 +996,7 @@ public class ContentResolverScriptTest {
 
     // A CursorWrapper of Android with the cursor of the provider in it, which can be a Lua stand-in here
     public static class Wrapper {
-        protected final Object mCursor;
+        protected Object mCursor; // not final: scripts set it, which the JDK warns about
 
         Wrapper(Object cursor) {
             mCursor = cursor;

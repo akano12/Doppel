@@ -159,6 +159,8 @@ public class XParamDeviceTest {
 
     // The copy of a query Bundle has the query arguments a provider reads, the same for its getters, and no value of
     // the app, so it parcels without code of the app; the Bundle of the app keeps them
+    // The typed getParcelable(String, Class) needs API 33, the call without a class is the one of minSdk 28
+    @SuppressWarnings("deprecation")
     @Test
     public void plainQueryArgsHaveNoCodeOfTheApp() throws Exception {
         Bundle nested = new Bundle();

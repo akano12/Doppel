@@ -128,11 +128,14 @@ class Util {
         return result;
     }
 
+    // The SDK version code reads, instead of Build.VERSION.SDK_INT, which is 0 in unit tests: SdkRule sets it there
+    static int SDK = Build.VERSION.SDK_INT;
+
     // The int flags of the package manager are deprecated since Android 13, the typed flags are the same
     @SuppressWarnings("deprecation")
     static PackageInfo getPackageInfo(PackageManager pm, String packageName, long flags)
             throws PackageManager.NameNotFoundException {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        if (SDK >= Build.VERSION_CODES.TIRAMISU)
             return pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags));
         return pm.getPackageInfo(packageName, (int) flags);
     }
@@ -140,14 +143,14 @@ class Util {
     @SuppressWarnings("deprecation")
     static ApplicationInfo getApplicationInfo(PackageManager pm, String packageName, long flags)
             throws PackageManager.NameNotFoundException {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        if (SDK >= Build.VERSION_CODES.TIRAMISU)
             return pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags));
         return pm.getApplicationInfo(packageName, (int) flags);
     }
 
     @SuppressWarnings("deprecation")
     static List<PackageInfo> getInstalledPackages(PackageManager pm, long flags) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        if (SDK >= Build.VERSION_CODES.TIRAMISU)
             return pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(flags));
         return pm.getInstalledPackages((int) flags);
     }

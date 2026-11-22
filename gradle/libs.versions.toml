@@ -1,9 +1,9 @@
 [versions]
-agp = "9.4.1"
+agp = "9.5.2"
 appcompat = "1.8.0"
 core = "1.19.1"
 splashscreen = "1.2.0"
-glide = "5.0.9"
+glide = "5.0.10"
 json = "20260814"
 junit = "4.13.2"
 libxposed = "102.0.0"

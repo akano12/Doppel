@@ -1799,7 +1799,7 @@ public class FingerprintScriptsTest {
                 "  ex:getStackTrace()[1]:toString(), proxied, works.set, opened.closed, after(hookof('query'), other), other.set,\n" +
                 "  after(hookof('query'), kept), kept.set, after(hookof('query'), broken), broken.set, table.concat(seen, ',')");
         assertFalse(result.arg1().toboolean());
-        assertEquals("java.lang.NumberFormatException: For input string: \"no such column: x\"", result.arg(2).tojstring());
+        assertNumberFormat(result.arg(2).tojstring());
         assertTrue(result.arg(3).toint() > 0);
         assertEquals(result.arg(5).tojstring(), result.arg(4).tojstring());
         assertFalse(result.arg(6).toboolean());
@@ -1828,7 +1828,7 @@ public class FingerprintScriptsTest {
                 "p.isInstance = function(self, object, name) return not string.find(tostring(object), 'LuaError', 1, true) end\n" +
                 "return after(hookof('query'), p), p.result:toString(), seen");
         assertFalse(result.arg1().toboolean());
-        assertEquals("java.lang.NumberFormatException: For input string: \"no such column: x\"", result.arg(2).tojstring());
+        assertNumberFormat(result.arg(2).tojstring());
         assertEquals(1, result.arg(3).toint());
 
         // Asked again with a copy of the query arguments of the Bundle of the app (XParam.plainQueryArgs), made with the
@@ -1861,7 +1861,7 @@ public class FingerprintScriptsTest {
                 "end\n" +
                 "return table.concat(list, ','), p.result:toString(), q.result:toString()");
         assertEquals("true false x = 1 nil,true false x = 1 nil", result.arg1().tojstring());
-        assertEquals("java.lang.NumberFormatException: For input string: \"no such column: x\"", result.arg(2).tojstring());
+        assertNumberFormat(result.arg(2).tojstring());
         assertEquals(result.arg(2).tojstring(), result.arg(3).tojstring());
     }
 
@@ -2946,5 +2946,10 @@ public class FingerprintScriptsTest {
         assertFalse(result.arg(23).toboolean());
         assertEquals(-1, result.arg(24).tolong());
         assertFalse(result.arg(25).toboolean());
+    }
+
+    // The type and the input of the error, not the rest of the message, which the JDK words as it likes
+    private static void assertNumberFormat(String error) {
+        assertTrue(error, error.startsWith("java.lang.NumberFormatException") && error.contains("no such column: x"));
     }
 }

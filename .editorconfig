@@ -18,3 +18,9 @@ indent_size = 2
 
 [*.bat]
 end_of_line = crlf
+
+# Vendored LuaJ keeps its upstream style
+[app/src/main/java/org/luaj/**]
+indent_style = tab
+insert_final_newline = unset
+trim_trailing_whitespace = false
