@@ -62,7 +62,15 @@ public class TailcallVarargs extends Varargs {
 	
 	public Varargs eval() {
 		while ( result == null ) {
-			Varargs r = func.onInvoke(args);
+			Varargs r;
+			try {
+				r = func.onInvoke(args);
+			} catch (LuaError e) {
+				throw e;
+			} catch (Exception e) {
+				// a Java function called by a tail call, like the calls of a closure, raises LuaError only
+				throw new LuaError(e);
+			}
 			if (r.isTailcall()) {
 				TailcallVarargs t = (TailcallVarargs) r;
 				func = t.func;

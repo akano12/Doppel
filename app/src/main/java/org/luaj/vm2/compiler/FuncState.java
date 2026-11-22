@@ -113,8 +113,8 @@ public class FuncState extends Constants {
 	void errorlimit (int limit, String what) {
 		// TODO: report message logic.
 	  	String msg = (f.linedefined == 0) ?
-	  	    L.pushfstring("main function has more than "+limit+" "+what) :
-	  	    L.pushfstring("function at line "+f.linedefined+" has more than "+limit+" "+what);
+	  	    ls.L.pushfstring("main function has more than "+limit+" "+what) :
+	  	    ls.L.pushfstring("function at line "+f.linedefined+" has more than "+limit+" "+what);
 	  	  ls.lexerror(msg, 0);
 	}
 

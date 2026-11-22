@@ -27,6 +27,10 @@ local FLAG_GRANT_READ_URI_PERMISSION = 1
 local FLAG_GRANT_WRITE_URI_PERMISSION = 2
 local PERMISSION_GRANTED = 0
 
+-- The provider of the module (the applicationId of the app, which a test keeps the same), which is not exported
+local MODULE_PACKAGE = 'sk.akano12.doppel'
+local MODULE_AUTHORITY = MODULE_PACKAGE .. '.XposedService'
+
 -- The authority of a content uri or of an authority, without the user in front, like 0@com.example.provider
 -- (see contentresolver_query); nil for uris of other schemes, which the resolver serves itself
 function authorityof(target)
@@ -200,6 +204,12 @@ function before(hook, param)
     local authority = authorityof(target)
     if authority == nil then
         return false
+    end
+    -- The activity manager looks up the provider of a type as the system, before it checks who asks, so the call
+    -- would start the process of Doppel even for an app which cannot see it, which is answered here, found or not
+    if method == 'getType' and authority == MODULE_AUTHORITY then
+        param:setResult(nil)
+        return true, MODULE_PACKAGE
     end
     local packageName = packageof(param, authority, 0)
     if packageName == nil or param:isPackageVisible(packageName) or granted(param, method, target, authority) then

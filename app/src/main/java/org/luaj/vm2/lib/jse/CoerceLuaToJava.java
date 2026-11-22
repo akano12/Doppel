@@ -300,7 +300,7 @@ public class CoerceLuaToJava {
 		public int score(LuaValue value) {
 			switch ( value.type() ) {
 			case LuaValue.TNUMBER:
-				return inheritanceLevels( targetType, value.isint()? Integer.class: Double.class );
+				return inheritanceLevels( targetType, value.isint()? Integer.class: value instanceof LuaDouble.ExactLong? Long.class: Double.class );
 			case LuaValue.TBOOLEAN:
 				return inheritanceLevels( targetType, Boolean.class );
 			case LuaValue.TSTRING:
@@ -316,6 +316,8 @@ public class CoerceLuaToJava {
 		public Object coerce(LuaValue value) {
 			switch ( value.type() ) {
 			case LuaValue.TNUMBER:
+				if ( value instanceof LuaDouble.ExactLong )
+					return Long.valueOf(((LuaDouble.ExactLong) value).l);
 				return value.isint()? (Object)Integer.valueOf(value.toint()): (Object)Double.valueOf(value.todouble());
 			case LuaValue.TBOOLEAN:
 				return value.toboolean()? Boolean.TRUE: Boolean.FALSE;

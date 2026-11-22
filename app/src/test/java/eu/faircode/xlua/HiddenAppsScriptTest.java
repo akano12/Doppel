@@ -217,6 +217,32 @@ public class HiddenAppsScriptTest {
                 "uriof('content', 'com.other.hidden.provider', '/photo/2')").arg(1).toboolean());
     }
 
+    // ContentResolver.getType of the provider of the module is answered without the call, which would start the process of
+    // Doppel as the system for an app which cannot see it, whether the package manager finds the provider or not; the
+    // other methods and other providers stay
+    @Test
+    public void typeOfTheModuleProviderIsAnsweredWithoutTheCall() throws Exception {
+        // The script has the package of the module as a constant
+        assertTrue(Scripts.read("provider_hidden").contains("MODULE_PACKAGE = '" + BuildConfig.APPLICATION_ID + "'"));
+        Globals globals = Scripts.load("provider_hidden", STUBS);
+        String module = "uriof('content', '" + BuildConfig.APPLICATION_ID + ".XposedService', '/x')";
+        for (String target : new String[]{module, module.replace("'content', '", "'content', '0@")}) {
+            Varargs result = provider(globals, "getType", target);
+            assertTrue(target, result.arg(1).toboolean());
+            assertTrue(target, result.arg(2).toboolean());
+            assertTrue(target, result.arg(3).isnil());
+            assertEquals(BuildConfig.APPLICATION_ID, result.arg(4).tojstring());
+        }
+        assertEquals(0, Scripts.run(globals, "return lookups").arg1().toint());
+        // Found by the package manager and visible: still answered
+        Scripts.run(globals, "providers['" + BuildConfig.APPLICATION_ID + ".XposedService'] = '" + BuildConfig.APPLICATION_ID + "'");
+        assertTrue(provider(globals, "getType", module).arg(2).toboolean());
+        // The other methods are for the system, which refuses them before it starts a process; other authorities stay
+        assertFalse(provider(globals, "query", module).arg(2).toboolean());
+        assertFalse(provider(globals, "getType", "uriof('content', 'com.example.app.provider', '/own')").arg(2).toboolean());
+        assertFalse(provider(globals, "getType", "uriof('content', 'other.XposedService', '/x')").arg(2).toboolean());
+    }
+
     private static Varargs document(Globals globals, String authority, String extras) {
         return Scripts.run(globals, "local param = paramof({ [0] = " + authority + ", [3] = " + extras + " })\n" +
                 "return before(hookof('call'), param)");

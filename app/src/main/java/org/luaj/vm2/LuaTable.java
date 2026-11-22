@@ -893,6 +893,11 @@ public class LuaTable extends LuaValue implements Metatable {
 
 	/** Unpack the elements from i to j inclusive */
 	public Varargs unpack(int i, int j) {
+		if (j < i) return NONE;
+		int count = j - i;
+		if (count < 0) throw new LuaError("too many results to unpack: greater " + Integer.MAX_VALUE); // integer overflow
+		int max = 0x00ffffff;
+		if (count >= max) throw new LuaError("too many results to unpack: " + count + " (max is " + max + ')');
 		int n = j + 1 - i;
 		switch (n) {
 		case 0: return NONE;
@@ -1232,9 +1237,8 @@ public class LuaTable extends LuaValue implements Metatable {
 		}
 
 		public Entry set(LuaValue value) {
-			LuaValue n = value.tonumber();
-			if ( !n.isnil() && !(n instanceof LuaDouble.ExactLong) ) {
-				this.value = n.todouble();
+			if ( value.type() == TNUMBER && !(value instanceof LuaDouble.ExactLong) ) {
+				this.value = value.todouble();
 				return this;
 			} else {
 				return new NormalEntry( this.key, value );

@@ -22,10 +22,14 @@
 package org.luaj.vm2.lib.jse;
 
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -176,8 +180,26 @@ public class LuajavaLib extends VarArgFunction {
 			return float.class;
 		else if ("double".equals(name))
 			return double.class;
-		return Class.forName(name, true, Thread.currentThread().getContextClassLoader());
+		ClassLoader loader = Thread.currentThread().getContextClassLoader();
+		Map<String, WeakReference<Class>> names;
+		synchronized (CLASSES) {
+			names = CLASSES.get(loader);
+			if (names == null)
+				CLASSES.put(loader, names = new ConcurrentHashMap<String, WeakReference<Class>>());
+		}
+		WeakReference<Class> ref = names.get(name);
+		Class clazz = (ref == null? null: ref.get());
+		if (clazz == null) {
+			// initializes the class once, as every later lookup finds it initialized; a failure is not cached
+			clazz = Class.forName(name, true, loader);
+			names.put(name, new WeakReference<Class>(clazz));
+		}
+		return clazz;
 	}
+
+	// per class loader, which a thread may change, and name; weak, so the cache does not keep a loader or a class
+	private static final Map<ClassLoader, Map<String, WeakReference<Class>>> CLASSES =
+		new WeakHashMap<ClassLoader, Map<String, WeakReference<Class>>>();
 	
 	private static final class ProxyInvocationHandler implements InvocationHandler {
 		private final LuaValue lobj;
@@ -190,7 +212,6 @@ public class LuajavaLib extends VarArgFunction {
 			String name = method.getName();
 			LuaValue func = lobj.get(name);
 			if ( func.isnil() ) {
-				// Proxy throws NullPointerException on null for a primitive return type
 				Class[] types = method.getParameterTypes();
 				if ( name.equals("equals") && types.length == 1 && types[0] == Object.class )
 					return Boolean.valueOf(proxy == args[0]);
@@ -198,16 +219,7 @@ public class LuajavaLib extends VarArgFunction {
 					return Integer.valueOf(System.identityHashCode(proxy));
 				if ( name.equals("toString") && types.length == 0 )
 					return "Proxy@" + Integer.toHexString(System.identityHashCode(proxy));
-				Class r = method.getReturnType();
-				if ( r == boolean.class ) return Boolean.FALSE;
-				if ( r == char.class ) return Character.valueOf((char) 0);
-				if ( r == byte.class ) return Byte.valueOf((byte) 0);
-				if ( r == short.class ) return Short.valueOf((short) 0);
-				if ( r == int.class ) return Integer.valueOf(0);
-				if ( r == long.class ) return Long.valueOf(0);
-				if ( r == float.class ) return Float.valueOf(0);
-				if ( r == double.class ) return Double.valueOf(0);
-				return null;
+				return defaultValue(method.getReturnType());
 			}
 			boolean isvarargs = ((method.getModifiers() & METHOD_MODIFIERS_VARARGS) != 0);
 			int n = args!=null? args.length: 0; 
@@ -225,22 +237,38 @@ public class LuajavaLib extends VarArgFunction {
 				for ( int i=0; i<n; i++ )
 					v[i] = CoerceJavaToLua.coerce(args[i]);
 			}
-			LuaValue result;
 			try {
-				result = func.invoke(v).arg1();
+				LuaValue result = func.invoke(v).arg1();
+				return CoerceLuaToJava.coerce(result, method.getReturnType());
 			} catch ( LuaError e ) {
 				// A Java method the function called threw: its exception, like a RemoteException, reaches the
 				// caller of the interface method as it would without the proxy, when the method may throw it
 				Throwable cause = e.getCause();
-				if ( cause instanceof RuntimeException || cause instanceof Error )
+				if ( cause instanceof RuntimeException || cause instanceof Error && !(cause instanceof StackOverflowError) )
 					throw cause;
 				if ( cause != null )
 					for ( Class<?> type : method.getExceptionTypes() )
 						if ( type.isInstance(cause) )
 							throw cause;
-				throw e;
+				// An error of the script itself does not reach the app, which does not expect it
+				return defaultValue(method.getReturnType());
+			} catch ( StackOverflowError e ) {
+				return defaultValue(method.getReturnType());
 			}
-			return CoerceLuaToJava.coerce(result, method.getReturnType());
+		}
+
+		// What the app gets from a method without a function or whose function failed:
+		// Proxy throws NullPointerException on null for a primitive return type
+		private static Object defaultValue(Class r) {
+			if ( r == boolean.class ) return Boolean.FALSE;
+			if ( r == char.class ) return Character.valueOf((char) 0);
+			if ( r == byte.class ) return Byte.valueOf((byte) 0);
+			if ( r == short.class ) return Short.valueOf((short) 0);
+			if ( r == int.class ) return Integer.valueOf(0);
+			if ( r == long.class ) return Long.valueOf(0);
+			if ( r == float.class ) return Float.valueOf(0);
+			if ( r == double.class ) return Double.valueOf(0);
+			return null;
 		}
 	}
 	

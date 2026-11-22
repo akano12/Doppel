@@ -624,7 +624,14 @@ function privappfile(path, param)
     end
     local ok, text = pcall(function()
         return param:unhooked(function()
-            return param:readFile(path)
+            -- Without StrictMode, which would tell the app of a read of a file of the system
+            local strict = luajava.bindClass('android.os.StrictMode')
+            local policy = strict:allowThreadDiskReads()
+            local done, value = pcall(function()
+                return param:readFile(path)
+            end)
+            strict:setThreadPolicy(policy)
+            return done and value or nil
         end)
     end)
     if not ok or text == nil then

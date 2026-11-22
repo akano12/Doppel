@@ -1603,6 +1603,13 @@ public class FileScriptsTest {
                         "  ['/system/etc/permissions/platform.xml'] = '<permissions><allow-in-power-save package=\"com.a\" />',\n" +
                         "  ['/odm/etc/permissions/sku_X/vendor-sku.xml'] =\n" +
                         "    '<permissions><privapp-permissions package=\"com.sku\">' }, {}\n" +
+                        "local bind = luajava.bindClass\n" +
+                        "luajava.bindClass = function(name)\n" +
+                        "  if name == 'android.os.StrictMode' then\n" +
+                        "    return { allowThreadDiskReads = function() end, setThreadPolicy = function() end }\n" +
+                        "  end\n" +
+                        "  return bind(name)\n" +
+                        "end\n" +
                         "local plain = appsparam\n" +
                         "function appsparam(...)\n" +
                         "  local param = plain(...)\n" +

@@ -631,16 +631,22 @@ function query(param)
     for method, value in pairs({ getString = NULL, getBlob = NULL, getDouble = 0, getFloat = 0, getLong = 0,
                                  getInt = 0, getShort = 0, getType = 0, isNull = true }) do
         methods[method] = function(index, ...)
+            local answer = result[method](result, index, ...)
             if hidden[index] then
+                -- The cursor raises its own exception first, as a closed one or a row it is not on does, like stock
                 return (value ~= NULL and value or nil)
             end
-            return result[method](result, index, ...)
+            return answer
         end
     end
     -- CharArrayBuffer of a hidden column: empty, like for null
     methods.copyStringToBuffer = function(index, buffer)
         if hidden[index] then
-            buffer.sizeCopied = 0
+            -- The cursor raises its own exception first, like for a missing buffer; the text of the column stays in the cursor
+            result:copyStringToBuffer(index, buffer ~= nil and luajava.newInstance('android.database.CharArrayBuffer', 0) or nil)
+            if buffer ~= nil then
+                buffer.sizeCopied = 0
+            end
             return
         end
         result:copyStringToBuffer(index, buffer)

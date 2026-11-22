@@ -155,6 +155,8 @@ public class BaseLib extends TwoArgFunction {
 			} catch ( Exception e ) {
 				final String m = e.getMessage();
 				return varargsOf(FALSE, valueOf(m!=null? m: e.toString()));
+			} catch ( StackOverflowError e ) {
+				return varargsOf(FALSE, valueOf("stack overflow"));
 			} finally {
 				if (globals != null && globals.debuglib != null)
 					globals.debuglib.onReturn();
@@ -308,6 +310,8 @@ public class BaseLib extends TwoArgFunction {
 				} catch ( Exception e ) {
 					final String m = e.getMessage();
 					return varargsOf(FALSE, valueOf(m!=null? m: e.toString()));
+				} catch ( StackOverflowError e ) {
+					return varargsOf(FALSE, valueOf("stack overflow"));
 				} finally {
 					if (globals != null && globals.debuglib != null)
 						globals.debuglib.onReturn();

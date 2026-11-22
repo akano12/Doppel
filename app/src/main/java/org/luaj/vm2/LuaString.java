@@ -639,19 +639,35 @@ public class LuaString extends LuaValue {
 	public static String decodeAsUtf8(byte[] bytes, int offset, int length) {
 		int i,j,n,b;
 		for ( i=offset,j=offset+length,n=0; i<j; ++n ) {
-			switch ( 0xE0 & bytes[i++] ) {
+			b = bytes[i++];
+			if ( (b & 0xF8) == 0xF0 ) {
+				// four byte sequence: a surrogate pair, counted as two even when truncated (the result is trimmed)
+				i += 3;
+				++n;
+			} else switch ( 0xE0 & b ) {
 			case 0xE0: ++i;
 			case 0xC0: ++i;
 			}
 		}
 		char[] chars=new char[n];
 		for ( i=offset,j=offset+length,n=0; i<j; ) {
+			if ( (bytes[i] & 0xF8) == 0xF0 && i+3 < j ) {
+				int cp = ((bytes[i]&0x07) << 18) | ((bytes[i+1]&0x3f) << 12) | ((bytes[i+2]&0x3f) << 6) | (bytes[i+3]&0x3f);
+				i += 4;
+				if ( Character.isValidCodePoint(cp) ) {
+					chars[n++] = Character.highSurrogate(cp);
+					chars[n++] = Character.lowSurrogate(cp);
+				} else {
+					chars[n++] = '\uFFFD';
+				}
+				continue;
+			}
 			chars[n++] = (char) (
 				((b=bytes[i++])>=0||i>=j)? b:
 				(b<-32||i+1>=j)? (((b&0x3f) << 6) | (bytes[i++]&0x3f)):
 					(((b&0xf) << 12) | ((bytes[i++]&0x3f)<<6) | (bytes[i++]&0x3f)));
 		}
-		return new String(chars);
+		return new String(chars, 0, n);
 	}
 	
 	/**

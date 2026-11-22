@@ -230,7 +230,7 @@ public class StringLib extends TwoArgFunction {
 								break;
 							case 'i':
 							case 'd':
-								fdsc.format( result, args.checkint( arg ) );
+								fdsc.format( result, args.checklong( arg ) );
 								break;
 							case 'o':
 							case 'u':
@@ -249,7 +249,13 @@ public class StringLib extends TwoArgFunction {
 								addquoted( result, args.checkstring( arg ) );
 								break;
 							case 's': {
-								LuaString s = args.checkstring( arg );
+								LuaValue v = args.checkvalue( arg );
+								LuaValue h = v.metatag( TOSTRING );
+								if ( ! h.isnil() )
+									v = h.call( v );
+								else if ( ! v.isstring() )
+									v = valueOf( v.tojstring() );
+								LuaString s = v.checkstring();
 								if ( fdsc.precision == -1 && s.length() >= 100 ) {
 									result.append( s );
 								} else {
@@ -639,8 +645,12 @@ public class StringLib extends TwoArgFunction {
 		public Varargs invoke(Varargs args) {
 			LuaString s = args.checkstring( 1 );
 			int n = args.checkint( 2 );
-			final byte[] bytes = new byte[ s.length() * n ];
 			int len = s.length();
+			if ( n <= 0 || len == 0 )
+				return EMPTYSTRING;
+			if ( (long) len * n > Integer.MAX_VALUE )
+				error("resulting string too large");
+			final byte[] bytes = new byte[ len * n ];
 			for ( int offset = 0; offset < bytes.length; offset += len ) {
 				s.copyInto( 0, bytes, offset, len );
 			}

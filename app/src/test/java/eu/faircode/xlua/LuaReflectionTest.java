@@ -21,7 +21,6 @@ package eu.faircode.xlua;
 
 import org.junit.Test;
 import org.luaj.vm2.Globals;
-import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.CoerceLuaToJava;
@@ -204,7 +203,7 @@ public class LuaReflectionTest {
 
     // A Java exception thrown within a function of a proxy reaches the caller as itself, like a RemoteException of
     // a binder, which apps catch, when the interface method declares it or it is unchecked; else and for errors of
-    // the script itself it stays a LuaError
+    // the script itself the app gets the default of the return type, no LuaError
     @Test
     public void proxyThrowsJavaExceptions() {
         try {
@@ -220,17 +219,10 @@ public class LuaReflectionTest {
             assertEquals(IllegalStateException.class, ex.getClass());
         }
         try {
-            reader("checked").read();
-            fail("No exception");
+            assertEquals(null, reader("checked").read());
+            assertEquals(null, reader(null).read());
         } catch (Exception ex) {
-            assertEquals(LuaError.class, ex.getClass());
-        }
-        try {
-            reader(null).read();
-            fail("No exception");
-        } catch (Exception ex) {
-            assertEquals(LuaError.class, ex.getClass());
-            assertEquals(null, ex.getCause());
+            fail(ex.toString());
         }
     }
 

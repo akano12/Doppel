@@ -195,7 +195,7 @@ public class OsLib extends TwoArgFunction {
 					result.append(String.valueOf(100+d.get(Calendar.HOUR_OF_DAY)).substring(1));
 					break;
 				case 'I':
-					result.append(String.valueOf(100+(d.get(Calendar.HOUR_OF_DAY)%12)).substring(1));
+					result.append(String.valueOf(100+(d.get(Calendar.HOUR) == 0? 12: d.get(Calendar.HOUR))).substring(1));
 					break;
 				case 'j': { // day of year.
 					Calendar y0 = beginningOfYear(d);
@@ -231,7 +231,7 @@ public class OsLib extends TwoArgFunction {
 					result.append(date("%H:%M:%S", time));
 					break;
 				case 'y':
-					result.append(String.valueOf(d.get(Calendar.YEAR)).substring(2));
+					result.append(String.valueOf(100+d.get(Calendar.YEAR)%100).substring(1));
 					break;
 				case 'Y':
 					result.append(String.valueOf(d.get(Calendar.YEAR)));
