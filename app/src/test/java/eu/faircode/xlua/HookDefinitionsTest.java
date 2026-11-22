@@ -392,7 +392,9 @@ public class HookDefinitionsTest {
     // Runs a script like the hook engine does to define its functions (see XCore.LuaLocals):
     // scripts can define functions, other globals are an error at run time
     private static void runScript(String name, String source) throws Exception {
-        Globals globals = JsePlatform.standardGlobals();
+        // In the globals of the engine, which a script cannot change the libraries of
+        Globals libraries = JsePlatform.standardGlobals();
+        Globals globals = new XCore.LuaLocals(libraries, XCore.protect(libraries));
         Set<String> standard = new HashSet<>();
         for (LuaValue key : globals.keys())
             standard.add(key.tojstring());
@@ -407,6 +409,11 @@ public class HookDefinitionsTest {
                         globals.rawget(key).isfunction());
         assertTrue("No before or after function for " + name,
                 globals.get("before").isfunction() || globals.get("after").isfunction());
+        // The engine runs the script of a built-in hook at its first call, unless it can define filter or shared, which it
+        // calls when it installs the hook, see XCore.installMethod
+        if (!new XCore.Script(source).definesFilterOrShared())
+            assertTrue(name + " defines filter or shared, which the engine would not find",
+                    globals.get("filter").isnil() && globals.get("shared").isnil());
         // The engine calls a function filter with the hook when it installs the hook, see XCore.getFilter
         LuaValue filter = globals.get("filter");
         if (filter.isfunction())

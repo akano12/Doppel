@@ -21,7 +21,6 @@
 package eu.faircode.xlua;
 
 import android.content.Context;
-import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -171,7 +170,7 @@ public class XHook {
 
     // Whether the hook applies to the Android version of the device
     public boolean isForThisSdk() {
-        return (Build.VERSION.SDK_INT >= this.minSdk && Build.VERSION.SDK_INT <= this.maxSdk);
+        return (Util.SDK >= this.minSdk && Util.SDK <= this.maxSdk);
     }
 
     public boolean isOptional() {

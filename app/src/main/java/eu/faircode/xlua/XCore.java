@@ -35,6 +35,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.IInterface;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.os.Process;
 import android.os.StrictMode;
@@ -49,6 +50,9 @@ import androidx.core.content.pm.PackageInfoCompat;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaClosure;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaString;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaThread;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Prototype;
 import org.luaj.vm2.Varargs;
@@ -72,15 +76,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 
 // Hook engine, independent of the hooking framework
 class XCore {
@@ -96,23 +104,34 @@ class XCore {
     private static volatile int version = -1;
 
     // Usage reports are sent in batches, with the last report per hook and event, and the last error, at most once a
-    // second. In apps the hooked call of any thread which comes once they are due sends them (see sendDue), so they
-    // start no thread, which the app could list, and their frames are only inside a hooked call, under the frames of
-    // its hook; a report with none sent in the second before is due right away. System server sends them on a thread of
-    // its own, which no app can list, since its hooked methods can hold locks which the settings provider and the
-    // notifications of the service take too.
-    // shortcut: the reports of the last second before an app makes no more hooked calls wait for its next one, and
-    // are lost when its process ends first; send them also when the last activity of the app stops if users miss them
-    // shortcut: the hooked call which sends the reports waits for the service, also on the main thread, for a time not
-    // measured on a device; measure it and send them by a call which does not wait if apps slow down
-    private static final long REPORT_DELAY = TimeUnit.SECONDS.toNanos(1);
+    // second. In apps the hooked call of any thread but the main thread which comes once they are due sends them (see
+    // sendDue), so no thread of the engine exists in the process of an app, which the app could list, and its frames are
+    // only inside a hooked call, under the frames of its hook; a report with none sent in the second before is due right
+    // away. The main thread leaves them for the next hooked call of another thread, since the service can be slow, unless
+    // they waited for mainDelay, so an app which does everything on its main thread still reports them. System server
+    // sends them on a thread of its own, which no app can list, since its hooked methods can hold locks which the settings
+    // provider and the notifications of the service take too. The only thread an app gets is that of the start which
+    // failed (see startLater), since an app which runs without its hooks is the worse outcome.
+    // shortcut: the reports of the last second before an app makes no more hooked calls wait for its next one, and are
+    // lost when its process ends first; send them also when the last activity of the app stops if users miss them
+    // shortcut: the hooked call which sends the reports waits for the service, for a time not measured on a device; measure
+    // it and send them by a call which does not wait if apps slow down
+    // Not final, like the next two, so tests do not wait
+    static long reportDelay = TimeUnit.SECONDS.toNanos(1);
+    static long mainDelay = TimeUnit.SECONDS.toNanos(30);
+    static BooleanSupplier onMainThread = () -> {
+        Looper main = Looper.getMainLooper();
+        return (main != null && main.isCurrentThread());
+    };
     private final Map<String, Map<String, Bundle>> queue = new HashMap<>();
     private volatile boolean queued = false;
     // By System.nanoTime, when the queue is due, and when reports were last sent
     private volatile long due = 0;
     private long sent = 0;
     private boolean anySent = false;
-    private ScheduledExecutorService reporter = null;
+    private ScheduledExecutorService background = null;
+    // By System.nanoTime, when the last error of a hook function was reported, see reportError
+    private final Map<String, Long> errored = new ConcurrentHashMap<>();
     // The methods hooked with a script shared by the groups, each with the script, see installMethod
     private final Set<String> sharedHooks = ConcurrentHashMap.newKeySet();
     // The callers deoptimized in this process, by their class loader and name: the hooks of one method in each group
@@ -170,28 +189,29 @@ class XCore {
                 !BuildConfig.APPLICATION_ID.equals(packageName));
     }
 
+    // Called by the catch of every callback, where an error would reach the hooked method, see ModernBackend
     static void log(Throwable ex) {
         if (!XLog.enabled())
             return;
-        XLog.e(TAG, Log.getStackTraceString(ex));
-        XBackend b = backend;
-        if (b != null)
-            try {
+        try {
+            XLog.e(TAG, Log.getStackTraceString(ex));
+            XBackend b = backend;
+            if (b != null)
                 b.log(ex);
-            } catch (Throwable ignored) {
-            }
+        } catch (Throwable ignored) {
+        }
     }
 
     static void log(String message) {
         if (!XLog.enabled())
             return;
-        XLog.i(TAG, message);
-        XBackend b = backend;
-        if (b != null)
-            try {
+        try {
+            XLog.i(TAG, message);
+            XBackend b = backend;
+            if (b != null)
                 b.log(message);
-            } catch (Throwable ignored) {
-            }
+        } catch (Throwable ignored) {
+        }
     }
 
     // System server
@@ -199,7 +219,7 @@ class XCore {
         // https://android.googlesource.com/platform/frameworks/base/+/master/services/core/java/com/android/server/am/ActivityManagerService.java
         Class<?> clsAM = Class.forName("com.android.server.am.ActivityManagerService", false, classLoader);
 
-        backend.hookAll(clsAM, "systemReady", new XBackend.Callback() {
+        int ready = backend.hookAll(clsAM, "systemReady", new XBackend.Callback() {
             @Override
             void before(XCall call) {
                 enterService();
@@ -296,6 +316,11 @@ class XCore {
             }
         });
 
+        // Logged, since the service would else never get its module version, signers and receivers, and the hooks of
+        // "android" none, on a system whose method is another, without a sign of it
+        if (ready == 0)
+            log("Service not started: no systemReady method of " + clsAM.getName() + " hooked");
+
         // Without this hook other listeners get Doppel's notifications, like before, but the service still runs
         try {
             XNotify.hideFromListeners(backend, classLoader);
@@ -309,7 +334,7 @@ class XCore {
     // on earlier versions, which the package of system server does not declare.
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private static void registerReceiver(Context context, IntentFilter filter) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        if (Util.SDK >= Build.VERSION_CODES.TIRAMISU)
             context.registerReceiver(new ReceiverPackage(), filter, Context.RECEIVER_NOT_EXPORTED);
         else
             context.registerReceiver(new ReceiverPackage(), filter);
@@ -451,7 +476,7 @@ class XCore {
             void before(XCall call) {
                 if (!inService())
                     try {
-                        markCall(call.args, Build.VERSION.SDK_INT, call.thisObject);
+                        markCall(call.args, Util.SDK, call.thisObject);
                     } catch (Throwable ex) {
                         log(ex);
                     }
@@ -510,22 +535,27 @@ class XCore {
     // Android 9 and later send the first five frames of a SecurityException of system server to the caller, also to
     // apps outside the scope, where the frames of the hook would follow those of the settings provider: they are left
     // out, so its caller, a method of ContentProvider or its Transport, follows like on a device without Doppel
+    // In the callbacks of system server, which an error of would reach it, see ModernBackend
     private static void withoutHookFrames(XCall call) {
-        if (!call.hasThrowable())
-            return;
-        Throwable ex = call.getThrowable();
-        List<StackTraceElement> frames = new ArrayList<>(Arrays.asList(ex.getStackTrace()));
-        String cls = call.method.getDeclaringClass().getName();
-        for (int i = 0; i < frames.size(); i++)
-            if (cls.equals(frames.get(i).getClassName()) && call.method.getName().equals(frames.get(i).getMethodName())) {
-                for (int j = i + 1; j < frames.size(); j++)
-                    if (frames.get(j).getClassName().startsWith("android.content.ContentProvider")) {
-                        frames.subList(i + 1, j).clear();
-                        ex.setStackTrace(frames.toArray(new StackTraceElement[0]));
-                        break;
-                    }
+        try {
+            if (!call.hasThrowable())
                 return;
-            }
+            Throwable ex = call.getThrowable();
+            List<StackTraceElement> frames = new ArrayList<>(Arrays.asList(ex.getStackTrace()));
+            String cls = call.method.getDeclaringClass().getName();
+            for (int i = 0; i < frames.size(); i++)
+                if (cls.equals(frames.get(i).getClassName()) && call.method.getName().equals(frames.get(i).getMethodName())) {
+                    for (int j = i + 1; j < frames.size(); j++)
+                        if (frames.get(j).getClassName().startsWith("android.content.ContentProvider")) {
+                            frames.subList(i + 1, j).clear();
+                            ex.setStackTrace(frames.toArray(new StackTraceElement[0]));
+                            break;
+                        }
+                    return;
+                }
+        } catch (Throwable ex) {
+            log(ex);
+        }
     }
 
     // Whom the service answers. When the service fails, like with a database which cannot be opened, which it logged and
@@ -652,6 +682,64 @@ class XCore {
         backend.hookAll(clsInstrumentation, "newApplication", callback);
     }
 
+    // The hooks assigned to an app, the settings they run with, and the version of the app, see assigned
+    static final class Assigned {
+        final List<XHook> hooks;
+        final Map<String, String> settings;
+        final long versionCode;
+
+        Assigned(List<XHook> hooks, Map<String, String> settings, long versionCode) {
+            this.hooks = hooks;
+            this.settings = settings;
+            this.versionCode = versionCode;
+        }
+    }
+
+    // What the reports of the engine itself have as their hook, see startLater
+    static final String ENGINE_HOOK = XProvider.ENGINE_HOOK;
+
+    // The delays in milliseconds between the tries to get the hooks of an app while the service fails: the first ones keep
+    // the start of the app waiting, which they delay by their sum at most, the later ones are tried in the background.
+    // Not final, so tests do not wait.
+    static long[] startDelays = {100, 300};
+    static long[] lateDelays = {2000, 5000, 15000, 30000};
+
+    // Gets the hooks of an app and its settings; not final, so tests can have the service answer
+    interface Fetcher {
+        Assigned get(Context context, String packageName, int uid) throws Throwable;
+    }
+
+    static Fetcher fetcher = XCore::assigned;
+
+    // The service runs the module it started with until a reboot, so after an update its parcels have the layout of the
+    // version before, which the engine of an app started since reads as those of its own: it asks the version first
+    static final class ServiceVersionException extends IllegalStateException {
+        ServiceVersionException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    // What the engine asks the service to tell its version, and an app without assignments from a service of before that
+    // query, which both get the error of the settings provider; not final, so tests answer
+    interface Probe {
+        int version(Context context) throws Throwable;
+
+        // A query only an app with assignments gets answered, by any version of the service
+        void settings(Context context) throws Throwable;
+    }
+
+    static Probe probe = new Probe() {
+        @Override
+        public int version(Context context) {
+            return Data.getServiceVersion(context);
+        }
+
+        @Override
+        public void settings(Context context) {
+            Data.getSettings(context, "global");
+        }
+    };
+
     private void hookPackage(final String packageName, int uid, final Context context) throws Throwable {
         // Before the first query of the engine; an app whose code cannot be kept from the service still gets its hooks.
         // System server has no code of an app, and its settings provider is its own, reached without a proxy.
@@ -662,35 +750,131 @@ class XCore {
                 log(ex);
             }
 
-        List<XHook> hooks;
+        Assigned assigned;
+        try {
+            assigned = fetch(context, packageName, uid);
+        } catch (Throwable ex) {
+            // The service failed, like with a database which it cannot read: the app would run with the real values for
+            // its whole life, so the hooks are tried again, and reported once the service answers, see startLater
+            log(new IllegalStateException("Hooks of " + packageName + ":" + uid + " not got", ex));
+            if (ex instanceof ServiceVersionException)
+                // Which the service keeps until it restarts, so it is reported now, and not tried again
+                reportStart(context, packageName, uid, ex, "The service runs another version of the module than the app: " +
+                        "the app runs with its real values until the device restarts");
+            else
+                startLater(context, packageName, uid, ex, 0);
+            return;
+        }
+        if (assigned != null)
+            installAll(context, assigned);
+    }
+
+    // The hooks of an app, null without assignments, tried again after the delays of the start while the service fails
+    private static Assigned fetch(Context context, String packageName, int uid) throws Throwable {
+        for (int attempt = 0; ; attempt++)
+            try {
+                return fetcher.get(context, packageName, uid);
+            } catch (Throwable ex) {
+                if (ex instanceof ServiceVersionException || attempt >= startDelays.length)
+                    throw ex;
+                XLog.w(TAG, "Hooks of " + packageName + ":" + uid + " again: " + ex);
+                try {
+                    Thread.sleep(startDelays[attempt]);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ex;
+                }
+            }
+    }
+
+    // The app runs without its hooks until the service answers: it is asked again in the background, after the late
+    // delays, and the hooks are installed when it does, which then reports that they were late, as the service can only
+    // be told once it works. An app which the service no longer has assignments for is left alone.
+    // shortcut: the hooks are installed while the app runs, like those of a script which hooks a method of an object it
+    // gets (see LuaHook), which a method run by another thread meanwhile can fail with, see hookApplication; an app
+    // which is still without hooks after the last try stays so, and nothing is reported, since the service did not answer
+    private void startLater(final Context context, final String packageName, final int uid, final Throwable failure,
+                            final int attempt) {
+        if (attempt >= lateDelays.length)
+            return;
+        try {
+            schedule(() -> {
+                Assigned assigned;
+                try {
+                    assigned = fetcher.get(context, packageName, uid);
+                } catch (Throwable ex) {
+                    log(ex);
+                    startLater(context, packageName, uid, failure, attempt + 1);
+                    return;
+                }
+                if (assigned == null)
+                    return;
+                try {
+                    installAll(context, assigned);
+                    reportStart(context, packageName, uid, failure, "The hooks of the app were installed late, after the " +
+                            "service failed to give them: until then the app ran with its real values");
+                } catch (Throwable ex) {
+                    log(ex);
+                }
+            }, TimeUnit.MILLISECONDS.toNanos(lateDelays[attempt]));
+        } catch (Throwable ex) {
+            log(ex);
+        }
+    }
+
+    // A report of the engine about the start of an app, for the service and the user
+    private void reportStart(Context context, String packageName, int uid, Throwable failure, String text) {
+        Bundle data = new Bundle();
+        data.putString("exception", "Exception:\n" + Log.getStackTraceString(failure) + "\n" +
+                "\nPackage:\n" + packageName + ":" + uid + "\n\n" + text + "\n");
+        report(context, ENGINE_HOOK, null, "install", data);
+        // An app without hooks makes no hooked call which would send it, also not after the start of the main thread
+        try {
+            schedule(() -> flush(context, packageName, uid), 0);
+        } catch (Throwable ex) {
+            log(ex);
+        }
+    }
+
+    // The hooks assigned to an app with their settings and the version of the app, null when it has no assignments, which
+    // the settings provider refuses the query of, see XProvider.answers; logged, since an illegal argument of the
+    // service would else leave the app without hooks silently. Any other error of the service is thrown, also one after
+    // the hooks, so an app never runs with a part of its settings.
+    static Assigned assigned(Context context, String packageName, int uid) throws Throwable {
         enterService();
         try {
-            hooks = Data.getAssignedHooks(context, packageName, uid);
-        } catch (IllegalArgumentException ex) {
-            // The settings provider refuses the query of an app without assignments, see XProvider.answers;
-            // logged, since an illegal argument of the service would else leave the app without hooks silently
-            XLog.i(TAG, "No assigned hooks: " + ex.getMessage());
-            return;
+            // The service of system server is of the code it runs in
+            if (!"android".equals(packageName) && !sameVersion(context))
+                return null;
+            List<XHook> hooks;
+            try {
+                hooks = Data.getAssignedHooks(context, packageName, uid);
+            } catch (IllegalArgumentException ex) {
+                XLog.i(TAG, "No assigned hooks: " + ex.getMessage());
+                return null;
+            }
+            if (hooks.isEmpty())
+                return null;
+            Map<String, String> settings = getSettings(context, packageName, uid);
+            PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), context.getPackageName(), 0);
+            return new Assigned(hooks, settings, PackageInfoCompat.getLongVersionCode(pi));
         } finally {
             leaveService();
         }
-        if (hooks.isEmpty())
-            return;
+    }
 
-        final Map<String, String> settings = getSettings(context, packageName, uid);
-
-        // Hooks with the same script share the compiled script
-        Map<String, Prototype> scripts = new HashMap<>();
-
-        PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), context.getPackageName(), 0);
-        long versionCode = PackageInfoCompat.getLongVersionCode(pi);
-        for (final XHook hook : hooks)
+    private void installAll(final Context context, Assigned assigned) {
+        // Hooks with the same script share the compiled script, and the classes are looked up once, also those which are
+        // missing, like of an SDK the app does not have, which all hooks of it name
+        Map<String, Script> scripts = new HashMap<>();
+        Map<String, Object> classes = new HashMap<>();
+        for (final XHook hook : assigned.hooks)
             try {
-                if (!hook.isAvailable(versionCode))
+                if (!hook.isAvailable(assigned.versionCode))
                     continue;
 
                 // Only install errors are reported, see XProvider.reports
-                install(context, hook, compile(hook, scripts), settings);
+                install(context, hook, scripts.computeIfAbsent(hook.getLuaScript(), Script::new), assigned.settings, classes);
             } catch (Throwable ex) {
                 if (hook.isOptional() &&
                         (ex instanceof NoSuchFieldException ||
@@ -709,8 +893,31 @@ class XCore {
             }
     }
 
-    // App settings replace global settings, the identifiers the service derives both (see FakeIds); the settings read
-    // until an error of the service, logged, since without them the app would run without any hook
+    // Whether the service runs the module of this version, which an app with assignments is told; false for an app
+    // without, which the settings provider refuses, like a service of before the question, which only the settings of all
+    // apps tell apart: an app with assignments gets those. A service of another version is an error, since the engine
+    // would not read its parcels, see ServiceVersionException.
+    static boolean sameVersion(Context context) throws Throwable {
+        int service;
+        try {
+            service = probe.version(context);
+        } catch (IllegalArgumentException | SecurityException ex) {
+            try {
+                probe.settings(context);
+            } catch (IllegalArgumentException | SecurityException refused) {
+                XLog.i(TAG, "No assigned hooks: " + refused.getMessage());
+                return false;
+            }
+            throw new ServiceVersionException("The service is of a version before the question of its version", ex);
+        }
+        if (!Data.isAvailable(service))
+            throw new ServiceVersionException("The service is of version " + service + ", the module of version " +
+                    BuildConfig.VERSION_CODE, null);
+        return true;
+    }
+
+    // App settings replace global settings, the identifiers the service derives both (see FakeIds); an error of the
+    // service is thrown, see assigned
     static Map<String, String> getSettings(Context context, String packageName, int uid) {
         Map<String, String> settings = new HashMap<>();
         enterService();
@@ -718,36 +925,102 @@ class XCore {
             settings.putAll(Data.getSettings(context, "global"));
             settings.putAll(Data.getSettings(context, packageName));
             settings.putAll(Data.getBootValues(context, packageName, uid));
-        } catch (Throwable ex) {
-            log(new IllegalStateException("Settings of " + packageName + ":" + uid, ex));
         } finally {
             leaveService();
         }
-        // Without the boot value of the service the suffix of the substitute names is made here, once for all hooks
-        // and threads, so two threads of a script cannot each make and keep a different one
+        return withProbeSuffix(settings);
+    }
+
+    // Without the boot value of the service the suffix of the substitute names is made here, once for all hooks
+    // and threads, so two threads of a script cannot each make and keep a different one
+    static Map<String, String> withProbeSuffix(Map<String, String> settings) {
         if (!settings.containsKey(FakeIds.PROBE_SUFFIX))
             settings.put(FakeIds.PROBE_SUFFIX, FakeIds.generate(FakeIds.PROBE_SUFFIX, new SecureRandom()));
         return settings;
     }
 
-    private static Prototype compile(XHook hook, Map<String, Prototype> scripts) throws Throwable {
-        String script = hook.getLuaScript();
-        Prototype compiled = scripts.get(script);
-        if (compiled == null) {
-            compiled = LuaC.instance.compile(
-                    new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
-            scripts.put(script, compiled);
+    // The text of a script and what is made of it when it is needed: compiled once for all hooks with the same text, by
+    // the thread which needs it first, and an error of that, which is kept
+    static final class Script {
+        private static final Pattern DEFINES = Pattern.compile("function\\s+(filter|shared)\\b|\\b(filter|shared)\\s*=[^=]");
+
+        private final String text;
+        private Prototype prototype = null;
+        private Exception failure = null;
+        private Boolean hooks = null;
+        private Boolean defines = null;
+
+        Script(String text) {
+            this.text = text;
         }
-        return compiled;
+
+        // Whether the text can define the function filter or shared, which the installation runs: as a function of that name
+        // or by an assignment, also one in a comment or of a local, which only makes the installation run the script
+        synchronized boolean definesFilterOrShared() {
+            if (defines == null)
+                defines = DEFINES.matcher(text).find();
+            return defines;
+        }
+
+        synchronized Prototype get() throws Exception {
+            if (prototype == null && failure == null)
+                try {
+                    prototype = LuaC.instance.compile(new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8)), "script");
+                } catch (Exception ex) {
+                    failure = ex;
+                }
+            if (failure != null)
+                throw failure;
+            return prototype;
+        }
+
+        // Whether the script names the function hook, which hooks methods of the objects it gets, see LuaHook
+        synchronized boolean hooks() throws Exception {
+            if (hooks == null)
+                hooks = names(get(), LuaValue.valueOf("hook"));
+            return hooks;
+        }
+
+        private static boolean names(Prototype prototype, LuaValue name) {
+            for (LuaValue constant : prototype.k)
+                if (name.raweq(constant))
+                    return true;
+            for (Prototype child : prototype.p)
+                if (names(child, name))
+                    return true;
+            return false;
+        }
+    }
+
+    // The class of a name, looked up once for the hooks of an app start, also when it is missing: the hooks of an SDK
+    // which the app does not have each name its classes, which would else each make the lookup and fail again
+    private static Class<?> resolveClass(String name, ClassLoader loader, Map<String, Object> classes)
+            throws ClassNotFoundException {
+        Object known = classes.get(name);
+        if (known == null) {
+            try {
+                known = XResolver.resolveClass(name, loader);
+            } catch (ClassNotFoundException ex) {
+                known = String.valueOf(ex.getMessage());
+            }
+            classes.put(name, known);
+        }
+        if (known instanceof String)
+            throw new ClassNotFoundException((String) known);
+        return (Class<?>) known;
     }
 
     // Hook the method or field of the definition
-    private void install(Context context, XHook hook, Prototype script, Map<String, String> settings) throws Throwable {
+    private void install(Context context, XHook hook, Script script, Map<String, String> settings,
+                         Map<String, Object> classes) throws Throwable {
         ClassLoader loader = context.getClassLoader();
-        Class<?> cls = XResolver.resolveClass(hook.getResolvedClassName(), loader);
+        Class<?> cls = resolveClass(hook.getResolvedClassName(), loader, classes);
 
-        Class<?>[] paramTypes = XResolver.resolveClasses(hook.getParameterTypes(), loader);
-        Class<?> returnType = (hook.getReturnType() == null ? null : XResolver.resolveClass(hook.getReturnType(), loader));
+        String[] names = hook.getParameterTypes();
+        Class<?>[] paramTypes = new Class<?>[names.length];
+        for (int i = 0; i < names.length; i++)
+            paramTypes[i] = resolveClass(names[i], loader, classes);
+        Class<?> returnType = (hook.getReturnType() == null ? null : resolveClass(hook.getReturnType(), loader, classes));
 
         Member member = XResolver.resolveTarget(cls, hook.getMethodName(), paramTypes, returnType);
         if (member instanceof Field) {
@@ -759,7 +1032,7 @@ class XCore {
     }
 
     // Static fields are changed once, by the after function
-    private void installField(Context context, XHook hook, Prototype script, Map<String, String> settings, Field field) {
+    private void installField(Context context, XHook hook, Script script, Map<String, String> settings, Field field) {
         try {
             Globals globals = getGlobals(context, hook, script, settings);
 
@@ -767,7 +1040,7 @@ class XCore {
             if (func.isnil())
                 return;
 
-            Varargs result = func.invoke(new LuaValue[]{
+            Varargs result = run(globals, func, new LuaValue[]{
                     CoerceJavaToLua.coerce(hook),
                     CoerceJavaToLua.coerce(new XParam(context, field, settings))
             });
@@ -777,27 +1050,40 @@ class XCore {
         }
     }
 
-    private void installMethod(final Context context, final XHook hook, final Prototype script,
+    private void installMethod(final Context context, final XHook hook, final Script script,
                                final Map<String, String> settings, final Member member) throws Throwable {
-        // The runtime made for the filter is the one of this thread, so the script runs once here
-        final Globals installed = getGlobals(context, hook, script, settings);
-        // A script whose function shared returns true acts the same for each group, like refusing programs, which each
-        // group does whose fakes a program could read: of its hooks of one method only the first is installed, so a
-        // call runs the script once and not once per restricted group, whose other hooks would find nothing left to do
-        // and only cost time; its use is reported for the group of that hook only, like one of them reported it before
-        LuaValue shared = installed.get("shared");
+        // The installation runs the functions filter and shared of a script, which most scripts do not have: the scripts
+        // of the app which have not are compiled, and run for their functions, by the first call of the hook on a thread,
+        // so the hooks of an app which it never calls cost the start almost nothing, which are most; the scripts of
+        // users are run here, so their errors are reported at the installation
+        final Globals installed;
+        final Filter filter;
         String key = member + "\n" + hook.getLuaScript();
-        boolean once = (!shared.isnil() && shared.call(CoerceJavaToLua.coerce(hook)).toboolean());
-        if (once && sharedHooks.contains(key))
-            return;
-        final Filter filter = getFilter(installed, hook, member);
+        boolean once = false;
+        if (hook.isBuiltin() && !script.definesFilterOrShared()) {
+            installed = null;
+            filter = null;
+        } else {
+            // The runtime made for the filter is the one of this thread, so the script runs once here
+            installed = getGlobals(context, hook, script, settings);
+            // A script whose function shared returns true acts the same for each group, like refusing programs, which each
+            // group does whose fakes a program could read: of its hooks of one method only the first is installed, so a
+            // call runs the script once and not once per restricted group, whose other hooks would find nothing left to do
+            // and only cost time; its use is reported for the group of that hook only, like one of them reported it before
+            LuaValue shared = installed.get("shared");
+            once = (!shared.isnil() && shared.call(CoerceJavaToLua.coerce(hook)).toboolean());
+            if (once && sharedHooks.contains(key))
+                return;
+            filter = getFilter(installed, hook, member);
+        }
         backend.hook(member, new XBackend.Callback() {
             // The Lua runtime of this hook per thread, without a lock on each call
             private final ThreadLocal<Globals> threadGlobals = new ThreadLocal<>();
             private final LuaValue luaHook = CoerceJavaToLua.coerce(hook);
 
             {
-                threadGlobals.set(installed);
+                if (installed != null)
+                    threadGlobals.set(installed);
             }
 
             @Override
@@ -839,9 +1125,7 @@ class XCore {
                             luaHook,
                             CoerceJavaToLua.coerce(new XParam(context, call, settings))
                     };
-                    // Not locked, also in debug builds: the call stacks of DebugLib are per Java thread, and a lock
-                    // held for the whole script deadlocks with a dynamic hook of this runtime on a thread it waits on
-                    Varargs result = func.invoke(args);
+                    Varargs result = run(globals, func, args);
                     reportUse(context, hook, function, result);
                 } catch (Throwable ex) {
                     // An error of the script leaves its runtime usable (the call stacks of DebugLib unwind in finally),
@@ -849,23 +1133,61 @@ class XCore {
                     // an error of the VM, like running out of memory, may have left it half way
                     if (ex instanceof VirtualMachineError)
                         threadGlobals.remove();
-                    // Describing the call runs code of the app (toString), which must not fail the call of the app,
-                    // nor run the scripts of hooked methods as if the app called them
-                    enterService();
-                    try {
-                        reportError(context, hook, function, ex,
-                                "\nMethod:\n" + function + " " + member + "\n" + describe(call));
-                    } catch (Throwable exex) {
-                        XLog.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(exex));
-                    } finally {
-                        leaveService();
-                    }
+                    failed(context, hook, function, ex, member, call);
                 }
             }
         });
         if (once)
             sharedHooks.add(key);
         deoptimize(context, hook);
+    }
+
+    // An error of a script, reported, in the callbacks of hooks which an error would reach the hooked method from, see
+    // ModernBackend, so nothing here throws. Describing the call runs code of the app (toString), which must not fail the
+    // call of the app, nor run the scripts of hooked methods as if the app called them.
+    private void failed(Context context, XHook hook, String function, Throwable ex, Member member, XCall call) {
+        try {
+            enterService();
+            try {
+                reportError(context, hook, function, ex, "\nMethod:\n" + function + " " + member + "\n" + describe(call));
+            } finally {
+                leaveService();
+            }
+        } catch (Throwable exex) {
+            try {
+                if (XLog.enabled())
+                    XLog.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(exex));
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    // How long a function waits for the lock of a runtime, see run, in milliseconds
+    private static final long LOCK_WAIT = 1000;
+
+    // Runs a function of a script with the StrictMode policy of the thread off, so what the script does, like looking at
+    // a file, is no violation of the app, whose own call stays one, and, in a runtime the functions of which hooks of
+    // its script run on other threads too, under the lock all of them take, which they wait for a limited time only:
+    // a script can wait for a thread which runs a function of its own runtime, which a lock held for its whole run would
+    // deadlock with; the function then runs without it, like before there was a lock.
+    private static Varargs run(Globals globals, LuaValue func, LuaValue[] args) {
+        StrictMode.ThreadPolicy policy = StrictMode.getThreadPolicy();
+        StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX);
+        ReentrantLock lock = (globals instanceof LuaLocals && ((LuaLocals) globals).dynamic ? ((LuaLocals) globals).lock : null);
+        boolean locked = false;
+        try {
+            if (lock != null)
+                try {
+                    locked = lock.tryLock(LOCK_WAIT, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            return func.invoke(args);
+        } finally {
+            if (locked)
+                lock.unlock();
+            StrictMode.setThreadPolicy(policy);
+        }
     }
 
     // The callers the definition names run in the interpreter, so the hook runs also where the boot image compiled the
@@ -938,8 +1260,11 @@ class XCore {
     // from the root for the first arguments which are paths of files (see Filter.files), other relative values, like the
     // names of resources of loadXmlResourceParser, are compared by their text only.
     // shortcut: each call of a path which no value matches by its text resolves the path once more, by getCanonicalPath
-    // through the hooks of canonicalize0, which return in the service; the cost was not measured on a device, resolve
-    // without those hooks if apps slow down. A link changed between the hooks and the call is read as the kernel finds it;
+    // through the hooks of canonicalize0, which return in the service; no rule of the text of a path tells that it has
+    // no link which leads to a value, as a link of the app itself or of the system does, like /etc or /sdcard, so only
+    // the hooks of one call share the result, see Filter.resolved. A link changed between the hooks and the call is read
+    // as the kernel finds it: the file system resolves the path again inside the call, and only a call which returns a
+    // descriptor could be checked after it, by its link in /proc/self/fd, at the cost of a call of the system for each open;
     // upgrade when apps are seen doing that.
     private static Filter getFilter(Globals globals, XHook hook, Member member) {
         LuaValue func = globals.get("filter");
@@ -1145,6 +1470,15 @@ class XCore {
     }
 
     private void reportError(Context context, XHook hook, String function, Throwable ex, String details) {
+        // A hook which fails on each call of a method called very often would else make all this for each call; the
+        // report keeps one error per hook and function, see report, so one in each second is enough
+        long now = System.nanoTime();
+        String failing = hook.getId() + ":" + function;
+        Long last = errored.get(failing);
+        if (last != null && now - last < reportDelay)
+            return;
+        errored.put(failing, now);
+
         String message = "Exception:\n" + Log.getStackTraceString(ex) + "\n" +
                 "\nPackage:\n" + context.getPackageName() + ":" + context.getApplicationInfo().uid + "\n" +
                 details;
@@ -1152,7 +1486,7 @@ class XCore {
         // like the service (see XProvider.Report); the report stores them for the app
         if (BuildConfig.DEBUG)
             XLog.e(TAG, message);
-        else
+        else if (XLog.enabled())
             XLog.e(TAG, hook.getId() + " " + function + ": " + Log.getStackTraceString(ex));
 
         Bundle data = new Bundle();
@@ -1181,30 +1515,68 @@ class XCore {
             if (queued)
                 return;
             long now = System.nanoTime();
-            due = (anySent && now - sent < REPORT_DELAY ? sent + REPORT_DELAY : now);
+            due = (anySent && now - sent < reportDelay ? sent + reportDelay : now);
             queued = true;
             if ("android".equals(packageName)) {
-                if (reporter == null)
-                    reporter = Executors.newSingleThreadScheduledExecutor(runnable -> {
-                        Thread thread = new Thread(runnable);
-                        thread.setDaemon(true);
-                        return thread;
-                    });
-                reporter.schedule(() -> flush(context, packageName, uid), due - now, TimeUnit.NANOSECONDS);
+                try {
+                    schedule(() -> flush(context, packageName, uid), due - now);
+                } catch (Throwable ex) {
+                    // The next report tries again
+                    queued = false;
+                }
                 return;
             }
         }
         sendDue(context);
     }
 
-    // The reports of an app, once they are due, on the thread of the hooked call, see queue
+    // The reports of an app, once they are due, on the thread of the hooked call, see queue; those of the main thread wait
+    // for another thread, until they are much older. Nothing here fails the hooked call, which an error would reach.
     private void sendDue(Context context) {
-        if (queued && System.nanoTime() - due >= 0 && !"android".equals(context.getPackageName()))
-            flush(context, context.getPackageName(), context.getApplicationInfo().uid);
+        try {
+            long now = System.nanoTime();
+            if (queued && now - due >= 0 && !"android".equals(context.getPackageName()) &&
+                    (now - due >= mainDelay || !onMainThread.getAsBoolean()))
+                flush(context, context.getPackageName(), context.getApplicationInfo().uid);
+        } catch (Throwable ex) {
+            log(ex);
+        }
+    }
+
+    // Runs a task on the thread of the engine, which system server has for its reports and an app for the start which
+    // failed only, see queue; made by the caller, without the hooks, since a method which makes threads can be hooked
+    private void schedule(Runnable task, long delay) {
+        enterService();
+        try {
+            synchronized (this) {
+                if (background == null) {
+                    ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, runnable -> {
+                        Thread thread = new Thread(runnable);
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                    // Idle, the thread ends, so an app which lists its threads finds one while a task runs and in the
+                    // seconds after it only
+                    executor.setKeepAliveTime(2, TimeUnit.SECONDS);
+                    executor.allowCoreThreadTimeOut(true);
+                    background = executor;
+                }
+                background.schedule(task, delay, TimeUnit.NANOSECONDS);
+            }
+        } finally {
+            leaveService();
+        }
     }
 
     // shortcut: a count, not a size; 20 stack traces of a few KB each fit, measure the parcel when traces grow
     static final int REPORTS_PER_CALL = 20;
+
+    // Sends reports to the service; not final, so tests see them
+    interface Sender {
+        void send(Context context, ArrayList<Bundle> reports) throws Throwable;
+    }
+
+    static Sender sender = Data::reports;
 
     private void flush(Context context, String packageName, int uid) {
         ArrayList<Bundle> work = new ArrayList<>();
@@ -1232,7 +1604,7 @@ class XCore {
             // is limited in size (1 MB for all calls of the app at once)
             for (int i = 0; i < work.size(); i += REPORTS_PER_CALL)
                 try {
-                    Data.reports(context, new ArrayList<>(work.subList(i, Math.min(work.size(), i + REPORTS_PER_CALL))));
+                    sender.send(context, new ArrayList<>(work.subList(i, Math.min(work.size(), i + REPORTS_PER_CALL))));
                 } catch (Throwable ex) {
                     // One line, like for a settings provider which cannot be reached: the service answers no report,
                     // also not a refused one of an app whose restrictions were all removed while it runs
@@ -1246,39 +1618,140 @@ class XCore {
 
     // The libraries of scripts (see JsePlatform, and debug in debug builds), once per process, made on first use:
     // loading them takes much longer than running a script, so with libraries per thread the first hooked call
-    // of each thread would be slower than the next ones; the built-in scripts only read them, and the call stacks
-    // of DebugLib are per Java thread
-    // shortcut: a user's script which calls xpcall, sets globals in a chunk it loads or changes a library table
-    // shares that with the other threads; make the error function of LuaThread per Java thread, like the call
-    // stacks, and the library tables read-only if such scripts matter
+    // of each thread would be slower than the next ones; the call stacks of DebugLib are per Java thread. The scripts see
+    // them through a view which they cannot change, see protect, and have the state they keep of the running thread,
+    // which the functions xpcall and load use, of their own, see LuaLocals.
     private static class Libraries {
         static final Globals globals = JsePlatform.standardGlobals();
+        static final LuaValue view;
 
         static {
             if (BuildConfig.DEBUG)
                 globals.load(new DebugLib());
+            view = protect(globals);
+        }
+    }
+
+    // The libraries as tables which a script cannot change, in which the library of strings is the one strings find their
+    // methods in: its metatable is the one of all strings, which a script could else change by getmetatable(''), and which
+    // the library hides by its field __metatable. A script can still call everything it can reach by luajava, like all
+    // Java code, but not, by a mistake or on purpose, change what the other scripts find in the libraries.
+    static LuaValue protect(Globals libraries) {
+        ReadOnly view = new ReadOnly(libraries, new IdentityHashMap<>());
+        LuaString.s_metatable = LuaValue.tableOf(new LuaValue[]{
+                LuaValue.INDEX, view.get("string"), LuaValue.METATABLE, LuaValue.valueOf("protected")});
+        return view;
+    }
+
+    // A copy of a table with copies of the tables in it, except the globals, which none of them can change
+    private static final class ReadOnly extends LuaTable {
+        private boolean built = false;
+
+        ReadOnly(LuaTable source, Map<LuaTable, ReadOnly> copies) {
+            copies.put(source, this);
+            for (Varargs entry = source.next(NIL); !entry.arg1().isnil(); entry = source.next(entry.arg1())) {
+                LuaValue value = entry.arg(2);
+                if (value instanceof Globals)
+                    continue;
+                if (value instanceof LuaTable) {
+                    ReadOnly copy = copies.get(value);
+                    value = (copy != null ? copy : new ReadOnly((LuaTable) value, copies));
+                }
+                super.rawset(entry.arg1(), value);
+            }
+            built = true;
+        }
+
+        private void check() {
+            if (built)
+                throw new LuaError("attempt to change a library");
+        }
+
+        @Override
+        public void set(int key, LuaValue value) {
+            check();
+            super.set(key, value);
+        }
+
+        @Override
+        public void set(LuaValue key, LuaValue value) {
+            check();
+            super.set(key, value);
+        }
+
+        @Override
+        public void rawset(int key, LuaValue value) {
+            check();
+            super.rawset(key, value);
+        }
+
+        @Override
+        public void rawset(LuaValue key, LuaValue value) {
+            check();
+            super.rawset(key, value);
+        }
+
+        @Override
+        public void hashset(LuaValue key, LuaValue value) {
+            check();
+            super.hashset(key, value);
+        }
+
+        @Override
+        public LuaValue remove(int pos) {
+            check();
+            return super.remove(pos);
+        }
+
+        @Override
+        public void insert(int pos, LuaValue value) {
+            check();
+            super.insert(pos, value);
+        }
+
+        @Override
+        public void sort(LuaValue comparator) {
+            check();
+            super.sort(comparator);
+        }
+
+        @Override
+        public LuaValue setmetatable(LuaValue metatable) {
+            check();
+            return super.setmetatable(metatable);
         }
     }
 
     // The globals of a hook on the current thread, with the functions the script defines
-    private static Globals getGlobals(Context context, XHook hook, Prototype script, Map<String, String> settings) {
-        LuaLocals globals = new LuaLocals(Libraries.globals);
+    private Globals getGlobals(Context context, XHook hook, Script script, Map<String, String> settings) throws Exception {
+        Prototype prototype = script.get();
+        LuaLocals globals = new LuaLocals(Libraries.globals, Libraries.view);
+        globals.dynamic = script.hooks();
         globals.rawset("log", new LuaLog(context.getPackageName(), context.getApplicationInfo().uid, hook.getId()));
-        globals.rawset("hook", new LuaHook(context, hook.getId(), settings, globals));
-        new LuaClosure(script, globals).call();
+        globals.rawset("hook", new LuaHook(context, hook, settings, globals));
+        new LuaClosure(prototype, globals).call();
         return globals;
     }
 
-    // Scripts can define functions, but no other globals; the libraries are shared by all hooks
-    private static class LuaLocals extends Globals {
-        LuaLocals(Globals libraries) {
-            // Same runtime, so errors have a traceback in debug builds; closures read only these fields
-            // of their globals, the libraries use the globals they were loaded into
+    // Scripts can define functions, but no other globals; the libraries are shared by all hooks, but not their state of
+    // the running thread, which only the error function of xpcall is: the libraries use that of the globals they were
+    // loaded into, so a script gets its own xpcall, which uses that of its own globals, and its own load, which loads
+    // into its own globals. A runtime is made per hook and thread.
+    static class LuaLocals extends Globals {
+        // Whether hooks of the script run its functions on other threads, which have the lock of the runtime, see run
+        volatile boolean dynamic = false;
+        final ReentrantLock lock = new ReentrantLock();
+
+        LuaLocals(Globals libraries, LuaValue view) {
+            // Same debug library, so errors have a traceback in debug builds, of which the call stacks are per Java thread;
+            // closures read only these fields of their globals, the libraries use the globals they were loaded into
             this.debuglib = libraries.debuglib;
-            this.running = libraries.running;
-            super.setmetatable(LuaValue.tableOf(new LuaValue[]{LuaValue.INDEX, libraries}));
+            super.setmetatable(LuaValue.tableOf(new LuaValue[]{
+                    LuaValue.INDEX, view, LuaValue.METATABLE, LuaValue.valueOf("protected")}));
             // Else _G would be the shared libraries, and its globals visible to the other hooks
             super.rawset(LuaValue.valueOf("_G"), this);
+            super.rawset(LuaValue.valueOf("xpcall"), new XPcall(this));
+            super.rawset(LuaValue.valueOf("load"), new Load(this, libraries.get("load")));
         }
 
         @Override
@@ -1306,56 +1779,128 @@ class XCore {
         }
     }
 
+    // xpcall(f, handler, ...) like the library's, with the error function in the running thread of the globals of the
+    // script, so a handler is called for errors of the functions of that script only, not of other hooks, on other threads
+    private static final class XPcall extends VarArgFunction {
+        private final Globals globals;
+
+        XPcall(Globals globals) {
+            this.globals = globals;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            final LuaThread thread = globals.running;
+            final LuaValue previous = thread.errorfunc;
+            thread.errorfunc = args.checkvalue(2);
+            try {
+                if (globals.debuglib != null)
+                    globals.debuglib.onCall(this);
+                try {
+                    return varargsOf(TRUE, args.arg1().invoke(args.subargs(3)));
+                } catch (LuaError le) {
+                    LuaValue message = le.getMessageObject();
+                    return varargsOf(FALSE, message != null ? message : NIL);
+                } catch (Exception e) {
+                    String message = e.getMessage();
+                    return varargsOf(FALSE, valueOf(message != null ? message : e.toString()));
+                } finally {
+                    if (globals.debuglib != null)
+                        globals.debuglib.onReturn();
+                }
+            } finally {
+                thread.errorfunc = previous;
+            }
+        }
+    }
+
+    // load(chunk, name, mode, env) like the library's, with the globals of the script as the environment of a chunk which
+    // has none, which the library's would give the shared globals
+    private static final class Load extends VarArgFunction {
+        private final Globals globals;
+        private final LuaValue load;
+
+        Load(Globals globals, LuaValue load) {
+            this.globals = globals;
+            this.load = load;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            return load.invoke(args.arg(4).isnil()
+                    ? varargsOf(new LuaValue[]{args.arg(1), args.arg(2), args.arg(3), globals}) : args);
+        }
+    }
+
+    // The dynamic hooks of a class, by hook id and method name or method; locked by itself. Installed on classes, so
+    // install each one only once, also when objects of several subclasses inherit the method; by class, not name, since
+    // another class loader can have a class of the same name, and weakly, so the set keeps no class the app drops
+    private static final Map<Class<?>, Set<String>> dynamicHooks = new WeakHashMap<>();
+
+    private static Set<String> dynamicHooks(Class<?> cls) {
+        return dynamicHooks.computeIfAbsent(cls, c -> new HashSet<>());
+    }
+
     // hook(object, method, function, args...): hook the methods with a name which the class of an object
     // declares or inherits from a super class
-    private static class LuaHook extends VarArgFunction {
-        // Dynamic hooks are installed on classes, so install each one only once, also when objects of several
-        // subclasses inherit the method; by class, not name, since another class loader can have a class of the
-        // same name, and weakly, so the set keeps no class the app drops
-        private static final Map<Class<?>, Set<String>> installed = new WeakHashMap<>();
-
+    private class LuaHook extends VarArgFunction {
         private final Context context;
-        private final String hookId;
+        private final XHook hook;
         private final Map<String, String> settings;
-        // The globals of the script on the installing thread, see execute
-        private final Globals runtime;
+        // The globals of the script on the installing thread, see run
+        private final LuaLocals runtime;
 
-        LuaHook(Context context, String hookId, Map<String, String> settings, Globals runtime) {
+        LuaHook(Context context, XHook hook, Map<String, String> settings, LuaLocals runtime) {
             this.context = context;
-            this.hookId = hookId;
+            this.hook = hook;
             this.settings = settings;
             this.runtime = runtime;
         }
 
         @Override
         public Varargs invoke(final Varargs args) {
+            runtime.dynamic = true;
             Class<?> cls = args.arg(1).checkuserdata().getClass();
             String m = args.arg(2).checkjstring();
             final LuaValue fun = args.arg(3).checkfunction();
-
-            String key = hookId + "/" + m;
-            List<Method> methods = new ArrayList<>();
-            synchronized (installed) {
-                if (!installed(cls).add(key))
-                    return LuaValue.NIL;
-
-                // Not an error, which would stop the script, which can hook other methods next
-                List<Method> resolved = XResolver.resolveMethods(cls, m);
-                if (resolved.isEmpty())
-                    XLog.w(TAG, "Dynamic hook " + hookId + "/" + cls.getName() + "." + m + " not found");
-                for (Method method : resolved)
-                    if (installed(method.getDeclaringClass()).add(hookId + "/" + method))
-                        methods.add(method);
-            }
-            if (methods.isEmpty())
-                return LuaValue.NIL;
-
-            XLog.i(TAG, "Dynamic hook " + cls.getName() + "." + m + " methods=" + methods.size());
             final List<LuaValue> xargs = new ArrayList<>();
             for (int i = 4; i <= args.narg(); i++)
                 xargs.add(args.arg(i));
 
-            XBackend.Callback callback = new XBackend.Callback() {
+            String key = hook.getId() + "/" + m;
+            // Marked as installed when it is, so another thread which hooks the same method waits for the hook instead of
+            // going on without it; the hooks which could not be installed are tried again on the next call
+            synchronized (dynamicHooks) {
+                if (dynamicHooks(cls).contains(key))
+                    return LuaValue.NIL;
+
+                // Not an error, which would stop the script, which can hook other methods next
+                List<Method> methods = new ArrayList<>();
+                List<Method> resolved = XResolver.resolveMethods(cls, m);
+                if (resolved.isEmpty())
+                    XLog.w(TAG, "Dynamic hook " + hook.getId() + "/" + cls.getName() + "." + m + " not found");
+                for (Method method : resolved)
+                    if (!dynamicHooks(method.getDeclaringClass()).contains(hook.getId() + "/" + method))
+                        methods.add(method);
+
+                if (!methods.isEmpty()) {
+                    XLog.i(TAG, "Dynamic hook " + cls.getName() + "." + m + " methods=" + methods.size());
+                    XBackend.Callback callback = callback(fun, xargs);
+                    for (Method method : methods)
+                        try {
+                            backend.hook(method, callback);
+                            dynamicHooks(method.getDeclaringClass()).add(hook.getId() + "/" + method);
+                        } catch (Throwable ex) {
+                            throw new LuaError(ex);
+                        }
+                }
+                dynamicHooks(cls).add(key);
+            }
+            return LuaValue.NIL;
+        }
+
+        private XBackend.Callback callback(final LuaValue fun, final List<LuaValue> xargs) {
+            return new XBackend.Callback() {
                 @Override
                 void before(XCall call) {
                     execute(call, "before");
@@ -1366,7 +1911,8 @@ class XCore {
                     execute(call, "after");
                 }
 
-                // Errors must not reach the app, which the modern API would let through
+                // Like the callback of a hook of a definition: errors must not reach the app, which the modern API would
+                // let through; what the function returns is its use, if it is a boolean, and the other values are none
                 private void execute(XCall call, String when) {
                     if (inService())
                         return;
@@ -1377,36 +1923,17 @@ class XCore {
                         values.add(LuaValue.valueOf(when));
                         values.add(CoerceJavaToLua.coerce(new XParam(context, call, settings)));
                         values.addAll(xargs);
-                        // The function is of the globals of the script on the thread which installed the hook,
-                        // whose locals are not thread safe for other dynamic hooks of it
-                        synchronized (runtime) {
-                            fun.invoke(values.toArray(new LuaValue[0]));
-                        }
+                        // The function is of the globals of the script on the thread which installed the hook, whose
+                        // locals are not thread safe for the other threads, nor for the functions of the script there
+                        Varargs result = run(runtime, fun, values.toArray(new LuaValue[0]));
+                        if (result.arg1().isboolean())
+                            reportUse(context, hook, when, result);
                     } catch (Throwable ex) {
-                        XLog.e(TAG, "Dynamic hook " + hookId + " " + call.method + ": " + Log.getStackTraceString(ex));
+                        // The runtime is shared by all threads, so it is kept, unlike that of a thread of a hook
+                        failed(context, hook, when, ex, call.method, call);
                     }
                 }
             };
-
-            // The hooks which could not be installed are tried again on the next call
-            for (int i = 0; i < methods.size(); i++)
-                try {
-                    backend.hook(methods.get(i), callback);
-                } catch (Throwable ex) {
-                    synchronized (installed) {
-                        installed(cls).remove(key);
-                        for (int j = i; j < methods.size(); j++)
-                            installed(methods.get(j).getDeclaringClass()).remove(hookId + "/" + methods.get(j));
-                    }
-                    throw new LuaError(ex);
-                }
-
-            return LuaValue.NIL;
-        }
-
-        // The dynamic hooks of a class, by hook id and method name or method; locked by installed
-        private static Set<String> installed(Class<?> cls) {
-            return installed.computeIfAbsent(cls, c -> new HashSet<>());
         }
     }
 
@@ -1424,8 +1951,16 @@ class XCore {
 
         @Override
         public LuaValue call(LuaValue arg) {
-            XLog.i(TAG, "Log " + packageName + ":" + uid + " " + hook + " " +
-                    arg.toString() + " (" + arg.typename() + ")");
+            // Nothing is made when nothing is logged, like a text of an object of the app, whose toString runs its code
+            if (XLog.enabled()) {
+                enterService();
+                try {
+                    XLog.i(TAG, "Log " + packageName + ":" + uid + " " + hook + " " +
+                            arg.toString() + " (" + arg.typename() + ")");
+                } finally {
+                    leaveService();
+                }
+            }
             return LuaValue.NIL;
         }
     }

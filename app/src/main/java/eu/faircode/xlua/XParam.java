@@ -440,9 +440,9 @@ public class XParam {
     private static PackageInfo getPackageInfo(PackageManager pm, String packageName)
             throws PackageManager.NameNotFoundException {
         long flags = PackageManager.MATCH_UNINSTALLED_PACKAGES;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+        if (Util.SDK >= Build.VERSION_CODES.Q)
             flags |= PackageManager.MATCH_APEX;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM)
+        if (Util.SDK >= Build.VERSION_CODES.VANILLA_ICE_CREAM)
             flags |= PackageManager.MATCH_ARCHIVED_PACKAGES;
         return Util.getPackageInfo(pm, packageName, flags);
     }
@@ -590,7 +590,8 @@ public class XParam {
     // The path a path leads to by its links, like the file system resolves them, null when it cannot be resolved; without
     // the hooks of the app, which give the canonical path of a hidden file as of one which does not exist. Android
     // disables the caches of canonical paths, so it reports no disk read to StrictMode (AOSP UnixFileSystem.canonicalize of
-    // Android 8.1 to 16 and main).
+    // Android 9 to 17), unless the system property sun.io.useCanonCaches turns them on. Each call is one real realpath;
+    // from Android 16 canonicalize0 is a Java method which asks the compatibility framework first.
     static String canonicalPath(String path) {
         XCore.enterService();
         try {
@@ -702,7 +703,7 @@ public class XParam {
     // NewApi: Os.fcntlInt is public from Android 11, and only called there (see hasFcntl).
     @SuppressLint("NewApi")
     private static boolean renumbered(Object opened, FileDescriptor fake, Object[] args) throws Exception {
-        int sdk = Build.VERSION.SDK_INT;
+        int sdk = Util.SDK;
         if (!movable(sdk, args, OsConstants.O_CLOEXEC))
             return false;
         boolean fcntl = hasFcntl(sdk);
@@ -778,7 +779,7 @@ public class XParam {
 
     // The fake with the text: a file in memory, before Android 11 a removed file of the app or a pipe (see oldFile)
     private FileDescriptor newFile(Object opened, byte[] bytes) throws Exception {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+        if (Util.SDK < Build.VERSION_CODES.R)
             return oldFile(this.context.getCacheDir(), bytes, sameSize(opened, bytes.length));
         FileDescriptor fake = Os.memfd_create("file", OsConstants.MFD_CLOEXEC);
         try {
@@ -994,7 +995,7 @@ public class XParam {
     // thousand, upgrade when that matters.
     static long lastModified(StructStat stat, long result) {
         long millis = stat.st_mtime * 1000;
-        boolean exact = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE || result % 1000 != 0);
+        boolean exact = (Util.SDK >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE || result % 1000 != 0);
         return (exact ? millis + stat.st_mtim.tv_nsec / 1000000 : millis);
     }
 
@@ -1072,7 +1073,7 @@ public class XParam {
         if (this.param.getThrowable() != null || this.param.getResult() == null)
             return olds;
         byte[] area = getFileBytes();
-        boolean backup = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R);
+        boolean backup = (Util.SDK >= Build.VERSION_CODES.R);
         boolean changed = false;
         for (int i = 0; i < names.length; i++)
             if ((olds[i] = replaceProperty(area, names[i], values[i], backup)) != null)
@@ -1126,11 +1127,14 @@ public class XParam {
         return properties.toArray(new String[0]);
     }
 
-    // The layout of a property area (bionic system_properties/prop_area.h and prop_info.h, the same on Android 8.1 to 17):
-    // a header of 128 bytes with the magic and the version, then the data, to which all offsets point. The data starts
+    // The layout of a property area (bionic system_properties/prop_area.h and prop_info.h, the same on Android 9 to 17,
+    // but for the dirty backup area, which only Android 11 and later have, see replaceProperty): a header of 128 bytes
+    // with the magic and the version, then the data, to which all offsets point. The data starts
     // with the root of a trie of the parts of the names between the dots: each node has the length of its part, the
     // offset of the property it ends, of its siblings before and after it in a binary tree, and of the tree of its
     // children, then the part. A property has a serial, with the length of its value in the top byte, then the value.
+    // From Android 15 the folder appcompat_override of /dev/__properties__ has areas of this layout too, which the
+    // hooks of opening files fake like the others (checked on Android 15).
     private static final int AREA_MAGIC = 0x504f5250;
     private static final int AREA_VERSION = 0xfc6ed0ab;
     private static final int AREA_DATA = 128;

@@ -26,9 +26,12 @@ import java.util.concurrent.Callable;
 // XposedBridge.handleHookedMethod does with one hook
 public final class XposedBridge {
     public static XC_MethodHook hooked = null;
+    // All members hooked, in order
+    public static final java.util.List<Member> hookedMembers = new java.util.ArrayList<>();
 
     public static XC_MethodHook.Unhook hookMethod(Member hookMethod, XC_MethodHook callback) {
         hooked = callback;
+        hookedMembers.add(hookMethod);
         return null;
     }
 

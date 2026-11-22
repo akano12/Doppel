@@ -208,8 +208,9 @@ You can write to the Android logcat using the *log* function:
 
 A log line starts with the word *Log* followed by the package name and uid of the app and the id of the hook (*collection.name*)
 and ends with the text and its Lua type, so it is always clear which hook and app a line belongs to.
-Release builds write these lines too, in the process of the hooked app, which can read its own log lines,
-so do not log real values, like identifiers, in scripts you share.
+Release builds write them in system server only: an app can read its own log lines, which would tell it that the module is there,
+so the processes of apps log nothing, and nothing is made of the value either, whose *toString* would run code of the app.
+Debug builds write them everywhere, so do not log real values, like identifiers, in scripts you share.
 
 You can hook a method of an object the script gets hold of, like a listener or the settings of a WebView,
 with the *hook* function:
@@ -225,7 +226,14 @@ with the *hook* function:
 This hooks the methods with that name which the class of the object declares or inherits, once per definition.
 The function is called before and after each execution of them with *when* (*before* or *after*),
 a *param* like the one of the *before*/*after* functions, and the arguments given to *hook* after the function, if any.
-What it returns is not used; an error in it is written to the logcat, and a method which does not exist is only logged too.
+Like the *before* and *after* functions of the definition it returns *true* when it restricted something, which counts as a use of the hook;
+any other value, also nothing, counts as none. An error in it is reported like an error of those functions, and is not passed to the app;
+a method which does not exist is only logged. A hook is installed once the framework hooked the method, and another thread which
+hooks the same method meanwhile waits for it. The functions of a script which hooks run one at a time in the runtime they were made in,
+also with the *before* and *after* function of the hook on that thread; one which waits more than a second for that runs anyway.
+Scripts cannot change the libraries (*string*, *table*, *math*, the metatable of strings and the others): that is an error.
+*xpcall* and *load* work for the script itself: the handler of *xpcall* is called for errors of its own functions only,
+and a chunk which *load* makes gets the globals of the script.
 The methods are hooked for the class, so the function runs for every object of it, also when the app calls one itself;
 to change only the objects the script was given, keep them with *param:putValue(name, value, object)*
 and compare *param:getThis()*, like [telephonymanager_listen](../app/src/main/assets/telephonymanager_listen.lua) does.

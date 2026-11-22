@@ -25,30 +25,34 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.IInterface;
+import android.os.Process;
 import android.os.RemoteException;
 import android.security.net.config.NetworkSecurityConfigProvider;
 
 import com.android.providers.settings.SettingsProvider;
+import com.android.server.am.ActivityManagerService;
 
 import org.json.JSONObject;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.luaj.vm2.Prototype;
-import org.luaj.vm2.compiler.LuaC;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.lib.jse.JsePlatform;
 
-import java.io.ByteArrayInputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -65,9 +69,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.io.File;
 
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModuleInterface;
 
@@ -79,6 +90,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 // Hooks installed by the engine, with a backend which records them
 public class XCoreTest {
@@ -121,6 +133,10 @@ public class XCoreTest {
     private int detached = 0;
 
     private XLuaModule module() {
+        return module(false);
+    }
+
+    private XLuaModule module(boolean systemServer) {
         XposedInterface.HookBuilder builder = (XposedInterface.HookBuilder) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[]{XposedInterface.HookBuilder.class},
                 (proxy, m, args) -> ("intercept".equals(m.getName()) ? null : proxy));
@@ -141,7 +157,8 @@ public class XCoreTest {
         module.attachFramework(framework, () -> detached++);
         module.onModuleLoaded((XposedModuleInterface.ModuleLoadedParam) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[]{XposedModuleInterface.ModuleLoadedParam.class},
-                (proxy, m, args) -> ("getProcessName".equals(m.getName()) ? "test.app" : false)));
+                (proxy, m, args) -> ("getProcessName".equals(m.getName()) ? "test.app"
+                        : "isSystemServer".equals(m.getName()) ? systemServer : false)));
         return module;
     }
 
@@ -579,9 +596,14 @@ public class XCoreTest {
         }
     }
 
-    private final List<Member> members = new ArrayList<>();
-    private final List<XBackend.Callback> callbacks = new ArrayList<>();
+    private final List<Member> members = Collections.synchronizedList(new ArrayList<>());
+    private final List<XBackend.Callback> callbacks = Collections.synchronizedList(new ArrayList<>());
     private final List<Member> deoptimized = new ArrayList<>();
+    private final List<String> logged = Collections.synchronizedList(new ArrayList<>());
+    // Run by the backend before it hooks a method, which tests make wait for other threads
+    private volatile Runnable gate = null;
+    // Whether the backend finds no method of a name to hook, like a system which has another one
+    private volatile boolean noMethods = false;
     private XCore core;
     private Context context;
 
@@ -625,8 +647,42 @@ public class XCoreTest {
     public static class Second extends Target {
     }
 
+    private long[] startDelays;
+    private long[] lateDelays;
+    private XCore.Fetcher fetcher;
+    private long reportDelay;
+    private XCore.Sender sender;
+    private XCore.Probe probe;
+    private long mainDelay;
+    private BooleanSupplier onMainThread;
+
+    // The tries to get the hooks of an app and the delay of reports, which the tests do not wait for
+    @After
+    public void restoreRetries() {
+        XCore.startDelays = startDelays;
+        XCore.lateDelays = lateDelays;
+        XCore.fetcher = fetcher;
+        XCore.reportDelay = reportDelay;
+        XCore.sender = sender;
+        XCore.probe = probe;
+        XCore.mainDelay = mainDelay;
+        XCore.onMainThread = onMainThread;
+        Gate.reset();
+    }
+
     @Before
     public void setUp() {
+        startDelays = XCore.startDelays;
+        lateDelays = XCore.lateDelays;
+        fetcher = XCore.fetcher;
+        reportDelay = XCore.reportDelay;
+        sender = XCore.sender;
+        probe = XCore.probe;
+        mainDelay = XCore.mainDelay;
+        onMainThread = XCore.onMainThread;
+        XCore.sender = (c, reports) -> sent.add(Thread.currentThread().getName() + " " + XCore.inService() + " reports");
+        XCore.startDelays = new long[0];
+        XCore.lateDelays = new long[0];
         core = new XCore(new XBackend() {
             @Override
             public String getName() {
@@ -635,8 +691,16 @@ public class XCoreTest {
 
             @Override
             public void hook(Member member, Callback callback) {
+                Runnable run = gate;
+                if (run != null)
+                    run.run();
                 members.add(member);
                 callbacks.add(callback);
+            }
+
+            @Override
+            public int hookAll(Class<?> cls, String name, Callback callback) throws Throwable {
+                return (noMethods ? 0 : XBackend.super.hookAll(cls, name, callback));
             }
 
             @Override
@@ -647,6 +711,7 @@ public class XCoreTest {
 
             @Override
             public void log(String message) {
+                logged.add(message);
             }
 
             @Override
@@ -687,12 +752,16 @@ public class XCoreTest {
         XHook hook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"" + name + "\"," +
                 " \"author\": \"Test\", \"className\": \"" + Target.class.getName() + "\", \"parameterTypes\": []," +
                 " \"minSdk\": 1, \"usage\": " + usage + ", \"luaScript\": \"\"" + attributes + "}");
-        Prototype prototype = LuaC.instance.compile(
-                new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)), "script");
         Method installMethod = XCore.class.getDeclaredMethod("installMethod",
-                Context.class, XHook.class, Prototype.class, Map.class, Member.class);
+                Context.class, XHook.class, XCore.Script.class, Map.class, Member.class);
         installMethod.setAccessible(true);
-        installMethod.invoke(core, context, hook, prototype, new HashMap<String, String>(), member);
+        try {
+            installMethod.invoke(core, context, hook, new XCore.Script(script), new HashMap<String, String>(), member);
+        } catch (InvocationTargetException ex) {
+            if (ex.getCause() instanceof Exception)
+                throw (Exception) ex.getCause();
+            throw ex;
+        }
     }
 
     // The callers a definition names are deoptimized once the hook is installed, all methods of the name or the
@@ -852,57 +921,6 @@ public class XCoreTest {
         XCall call = new XCall(get, new Target(), new Object[0]);
         callbacks.get(0).before(call);
         assertEquals("fake", call.getResult());
-    }
-
-    // The reports of restricted calls start no thread, which the app could list: the first is sent right away, on the
-    // thread of the hooked call, the next ones together, by the first hooked call once a second has passed
-    @Test
-    public void reportsStartNoThread() throws Throwable {
-        List<String> sent = new ArrayList<>();
-        ApplicationInfo ai = context.getApplicationInfo();
-        context = new ContextWrapper(null) {
-            @Override
-            public String getPackageName() {
-                return "test.app";
-            }
-
-            @Override
-            public ApplicationInfo getApplicationInfo() {
-                return ai;
-            }
-
-            @Override
-            public ClassLoader getClassLoader() {
-                return XCoreTest.class.getClassLoader();
-            }
-
-            // The reports are sent by the content resolver, without which they fail, like when the service refuses them
-            @Override
-            public ContentResolver getContentResolver() {
-                sent.add(Thread.currentThread().getName() + " " + XCore.inService());
-                return null;
-            }
-        };
-        Method get = Target.class.getMethod("get");
-        install("reportsStartNoThread", "local calls = 0\n" +
-                "function before(hook, param) calls = calls + 1 return calls <= 2 end", get, "", true);
-        Set<Thread> threads = new HashSet<>(Thread.getAllStackTraces().keySet());
-        String self = Thread.currentThread().getName() + " true";
-
-        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
-        assertEquals(Collections.singletonList(self), sent);
-        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
-        assertEquals(1, sent.size());
-        // Once a second has passed, without waiting for it: the queue was due a second ago
-        Field due = XCore.class.getDeclaredField("due");
-        due.setAccessible(true);
-        due.setLong(core, due.getLong(core) - TimeUnit.SECONDS.toNanos(2));
-        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
-        assertEquals(Arrays.asList(self, self), sent);
-
-        Set<Thread> started = new HashSet<>(Thread.getAllStackTraces().keySet());
-        started.removeAll(threads);
-        assertEquals(Collections.emptySet(), started);
     }
 
     // In system server the hooks of "android" do not apply to the service and the engine itself
@@ -1202,17 +1220,6 @@ public class XCoreTest {
         }
     }
 
-    // Without the settings of the service the hooks are installed still, with the settings read and a suffix of the
-    // substitute names of their own, new for each app
-    @Test
-    public void settingsFail() {
-        Map<String, String> settings = XCore.getSettings(context, "test.app", 10123);
-        assertEquals(settings.keySet().toString(), 1, settings.size());
-        String suffix = settings.get(FakeIds.PROBE_SUFFIX);
-        assertTrue(suffix, suffix.matches("\\.x[0-9]{9}"));
-        assertNotEquals(suffix, XCore.getSettings(context, "test.app", 10123).get(FakeIds.PROBE_SUFFIX));
-    }
-
     // Files are compared by their path, other objects not at all
     @Test
     public void filterValues() {
@@ -1288,5 +1295,762 @@ public class XCoreTest {
         callbacks.get(0).after(new XCall(get, new Second(), new Object[0]));
         callbacks.get(0).after(first);
         assertEquals(2, members.size());
+    }
+
+    // What the scripts of the tests below call to meet other threads
+    public static class Gate {
+        public static volatile CountDownLatch inside = new CountDownLatch(1);
+        public static volatile CountDownLatch release = new CountDownLatch(1);
+        public static volatile boolean dynamicRan = false;
+        public static volatile boolean ranDuringStatic = false;
+        public static volatile int chunks = 0;
+        public static volatile Runnable task = null;
+
+        static void reset() {
+            inside = new CountDownLatch(1);
+            release = new CountDownLatch(1);
+            dynamicRan = false;
+            ranDuringStatic = false;
+            chunks = 0;
+            task = null;
+        }
+
+        // A script which runs its chunk
+        public static void chunk() {
+            chunks++;
+        }
+
+        // The function of a dynamic hook
+        public static void ran() {
+            dynamicRan = true;
+        }
+
+        // A function of a script which is in a call for a while, and tells whether a function of its runtime ran meanwhile
+        public static void hold() throws InterruptedException {
+            inside.countDown();
+            Thread.sleep(300);
+            ranDuringStatic = dynamicRan;
+        }
+
+        // A function of a script which waits for another thread to run something
+        public static void joinTask() throws InterruptedException {
+            Thread thread = new Thread(task);
+            thread.start();
+            thread.join(10000);
+        }
+    }
+
+    private interface Task {
+        void run() throws Throwable;
+    }
+
+    private final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
+
+    // A thread of a test, whose failure the test finds with failures
+    private Thread thread(Task task) {
+        return new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable ex) {
+                failures.add(ex);
+            }
+        });
+    }
+
+    private static boolean waitFor(BooleanSupplier condition) throws InterruptedException {
+        for (int i = 0; i < 100 && !condition.getAsBoolean(); i++)
+            Thread.sleep(50);
+        return condition.getAsBoolean();
+    }
+
+    // The reports the engine sends, by the thread and whether it is without the hooks
+    private final List<String> sent = Collections.synchronizedList(new ArrayList<>());
+
+    private Context contextWith(ContentResolver resolver) {
+        ApplicationInfo ai = context.getApplicationInfo();
+        return new ContextWrapper(null) {
+            @Override
+            public String getPackageName() {
+                return "test.app";
+            }
+
+            @Override
+            public ApplicationInfo getApplicationInfo() {
+                return ai;
+            }
+
+            @Override
+            public ClassLoader getClassLoader() {
+                return XCoreTest.class.getClassLoader();
+            }
+
+            @Override
+            public ContentResolver getContentResolver() {
+                return resolver;
+            }
+        };
+    }
+
+    private void hookPackage(String packageName) throws Throwable {
+        Method hookPackage = XCore.class.getDeclaredMethod("hookPackage", String.class, int.class, Context.class);
+        hookPackage.setAccessible(true);
+        try {
+            hookPackage.invoke(core, packageName, 10123, context);
+        } catch (InvocationTargetException ex) {
+            throw ex.getCause();
+        }
+    }
+
+    // The reports of restricted calls are sent by the hooked call of a thread which is not the main thread, so no thread
+    // of the engine exists in the process of an app: the main thread leaves them for another thread, unless they are much
+    // older than the delay
+    @Test
+    public void reportsAreSentByAHookedThreadButTheMainThread() throws Throwable {
+        XCore.reportDelay = TimeUnit.MILLISECONDS.toNanos(300);
+        XCore.mainDelay = TimeUnit.SECONDS.toNanos(60);
+        Thread main = Thread.currentThread();
+        XCore.onMainThread = () -> Thread.currentThread() == main;
+        Method get = Target.class.getMethod("get");
+        install("reportsAreSentByAHookedThread", "function before(hook, param) return true end", get, "", true);
+        Set<Thread> threads = new HashSet<>(Thread.getAllStackTraces().keySet());
+
+        // The main thread makes the report and leaves it, also at its next call
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(Collections.emptyList(), sent);
+
+        // The next hooked call of another thread sends it, without the hooks
+        Thread other = thread(() -> callbacks.get(0).before(new XCall(get, new Target(), new Object[0])));
+        other.start();
+        other.join();
+        assertEquals(Collections.emptyList(), failures);
+        assertEquals(Collections.singletonList(other.getName() + " true reports"), sent);
+
+        // A report which waited much longer than the delay is sent by the main thread too
+        XCore.mainDelay = TimeUnit.MILLISECONDS.toNanos(200);
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(1, sent.size());
+        Thread.sleep(700);
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(Arrays.asList(other.getName() + " true reports", main.getName() + " true reports"), sent);
+
+        Set<Thread> started = new HashSet<>(Thread.getAllStackTraces().keySet());
+        started.removeAll(threads);
+        assertEquals(Collections.emptySet(), started);
+    }
+
+    // A hook which fails on each call does not make and report an error for each call: one in the delay is enough, since
+    // the report keeps the last error of a function of a hook
+    @Test
+    public void errorsAreReportedOncePerDelay() throws Throwable {
+        XCore.reportDelay = TimeUnit.SECONDS.toNanos(30);
+        Method get = Target.class.getMethod("get");
+        install("errorsAreReportedOncePerDelay", "function before(hook, param) error('fails') end", get, "", true);
+
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertTrue(waitFor(() -> sent.size() == 1));
+        for (int i = 0; i < 3; i++)
+            callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        Field queue = XCore.class.getDeclaredField("queue");
+        queue.setAccessible(true);
+        assertEquals(Collections.emptyMap(), queue.get(core));
+    }
+
+    // A service which fails is asked again at the start of the app, a few times, and an app without assignments, which the
+    // settings provider refuses, once
+    @Test
+    public void failedServiceIsAskedAgain() throws Throwable {
+        XCore.startDelays = new long[]{0, 0};
+        AtomicInteger tries = new AtomicInteger();
+        XCore.fetcher = (c, p, u) -> {
+            tries.incrementAndGet();
+            throw new IllegalStateException("No answer of the service");
+        };
+        hookPackage("android");
+        assertEquals(3, tries.get());
+
+        tries.set(0);
+        XCore.fetcher = (c, p, u) -> {
+            tries.incrementAndGet();
+            return null;
+        };
+        hookPackage("android");
+        assertEquals(1, tries.get());
+    }
+
+    // No answer of the service, which Data tells by an exception, is no sign that the app has no assignments
+    @Test
+    public void noAnswerIsNotNoAssignments() {
+        context = contextWith(new ContentResolver(null) {
+        });
+        try {
+            XCore.assigned(context, "test.app", 10123);
+            fail("App without hooks for a service which gave no answer");
+        } catch (Throwable expected) {
+            assertTrue(expected.toString(), expected instanceof IllegalStateException);
+        }
+    }
+
+    // An app which the service did not answer at its start gets its hooks when it does, later, and the service is told:
+    // until then the app ran with its real values
+    @Test
+    public void lateStartInstallsAndReports() throws Throwable {
+        XCore.startDelays = new long[]{0};
+        XCore.lateDelays = new long[]{20, 20};
+        Method get = Target.class.getMethod("get");
+        XHook hook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"lateStart\"," +
+                " \"author\": \"Test\", \"className\": \"" + Target.class.getName() + "\", \"methodName\": \"get\"," +
+                " \"parameterTypes\": [], \"minSdk\": 0, \"luaScript\": \"function before(h, p) return false end\"}");
+        AtomicInteger tries = new AtomicInteger();
+        // Fails at the start (two tries) and at the first later try
+        XCore.fetcher = (c, p, u) -> {
+            if (tries.incrementAndGet() < 4)
+                throw new IllegalStateException("No answer of the service");
+            return new XCore.Assigned(Collections.singletonList(hook), new HashMap<>(), 1);
+        };
+
+        hookPackage("android");
+        assertTrue(members.isEmpty());
+        assertTrue(waitFor(() -> members.contains(get)));
+        assertEquals(4, tries.get());
+        assertTrue(waitFor(() -> sent.size() == 1));
+        assertTrue(sent.get(0), sent.get(0).endsWith(" true reports"));
+    }
+
+    private static XCore.Probe probe(Callable<Integer> version, Runnable settings) {
+        return new XCore.Probe() {
+            @Override
+            public int version(Context context) throws Exception {
+                return version.call();
+            }
+
+            @Override
+            public void settings(Context context) {
+                settings.run();
+            }
+        };
+    }
+
+    // The engine does not read the parcels of a service of another version, which has the layout of the module before an
+    // update, until the device restarts: not the one of a service which tells its version, nor the one of a service which
+    // does not know the question, which the settings of all apps tell from an app without assignments
+    @Test
+    public void serviceOfAnotherVersionIsNotRead() throws Throwable {
+        Runnable answered = () -> {
+        };
+        Runnable refused = () -> {
+            throw new IllegalArgumentException("Supported SQL");
+        };
+        Callable<Integer> older = () -> BuildConfig.VERSION_CODE - 1;
+        Callable<Integer> unknown = () -> {
+            throw new IllegalArgumentException("Supported SQL");
+        };
+
+        XCore.probe = probe(older, answered);
+        try {
+            XCore.assigned(context, "test.app", 10123);
+            fail("Service of another version");
+        } catch (XCore.ServiceVersionException expected) {
+        }
+        XCore.probe = probe(unknown, answered);
+        try {
+            XCore.assigned(context, "test.app", 10123);
+            fail("Service of before the question");
+        } catch (XCore.ServiceVersionException expected) {
+        }
+        XCore.probe = probe(() -> {
+            throw new SecurityException("Permission denial");
+        }, answered);
+        try {
+            XCore.assigned(context, "test.app", 10123);
+            fail("Service which refuses the question");
+        } catch (XCore.ServiceVersionException expected) {
+        }
+
+        // An app without assignments gets the error of the settings provider for both
+        XCore.probe = probe(unknown, refused);
+        assertNull(XCore.assigned(context, "test.app", 10123));
+
+        // The same version goes on to the hooks, which the stubs cannot read; system server is not asked
+        XCore.probe = probe(() -> BuildConfig.VERSION_CODE, answered);
+        try {
+            XCore.assigned(context, "test.app", 10123);
+            fail("Hooks without a service");
+        } catch (Throwable expected) {
+            assertFalse(expected.toString(), expected instanceof XCore.ServiceVersionException);
+        }
+        XCore.probe = probe(older, answered);
+        try {
+            XCore.assigned(context, "android", 1000);
+            fail("Hooks without a service");
+        } catch (Throwable expected) {
+            assertFalse(expected.toString(), expected instanceof XCore.ServiceVersionException);
+        }
+    }
+
+    // A service of another version is reported at once and not asked again, which does not change until it restarts
+    @Test
+    public void serviceOfAnotherVersionIsReportedOnce() throws Throwable {
+        // The main thread leaves reports for a hooked call, which an app without hooks never makes: the thread of the engine
+        // sends this one
+        Thread main = Thread.currentThread();
+        XCore.onMainThread = () -> Thread.currentThread() == main;
+        XCore.startDelays = new long[]{0, 0};
+        XCore.lateDelays = new long[]{20};
+        AtomicInteger tries = new AtomicInteger();
+        XCore.fetcher = (c, p, u) -> {
+            tries.incrementAndGet();
+            throw new XCore.ServiceVersionException("The service is of another version", null);
+        };
+        hookPackage("android");
+        assertTrue(waitFor(() -> sent.size() == 1));
+        assertFalse(sent.get(0), sent.get(0).startsWith(main.getName() + " "));
+        Thread.sleep(200);
+        assertEquals(1, sent.size());
+        assertEquals(1, tries.get());
+    }
+
+    // The settings are all or none: an error of the service is an error of the start, not a part of the settings
+    @Test
+    public void settingsOfAFailingServiceAreAnError() {
+        context = contextWith(new ContentResolver(null) {
+        });
+        try {
+            XCore.getSettings(context, "test.app", 10123);
+            fail("Settings of a service which gave no answer");
+        } catch (IllegalStateException expected) {
+        }
+    }
+
+    // Without the boot value of the service the hooks have a suffix of the substitute names of their own, new for each app
+    @Test
+    public void settingsHaveASuffixOfTheirOwn() {
+        Map<String, String> settings = XCore.withProbeSuffix(new HashMap<>());
+        assertEquals(settings.keySet().toString(), 1, settings.size());
+        String suffix = settings.get(FakeIds.PROBE_SUFFIX);
+        assertTrue(suffix, suffix.matches("\\.x[0-9]{9}"));
+        assertNotEquals(suffix, XCore.withProbeSuffix(new HashMap<>()).get(FakeIds.PROBE_SUFFIX));
+
+        Map<String, String> given = new HashMap<>();
+        given.put(FakeIds.PROBE_SUFFIX, ".x1");
+        assertEquals(".x1", XCore.withProbeSuffix(given).get(FakeIds.PROBE_SUFFIX));
+    }
+
+    // The hooks of the app are made when it is called first, unless the installation runs a function of its script, and the
+    // script of a user is made at the installation, which reports its error
+    @Test
+    public void scriptsOfTheAppAreMadeWhenCalled() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        String broken = "function before(hook, param) return ( end";
+        install("builtinBroken", broken, get, ", \"builtin\": true");
+        assertEquals(1, members.size());
+        callbacks.get(0).before(new XCall(get, new Target(), new Object[0]));
+        assertTrue(waitFor(() -> sent.size() == 1));
+        try {
+            install("customBroken", broken, get, "");
+            fail("Script with an error");
+        } catch (LuaError expected) {
+        }
+
+        // The chunk runs once per thread and hook, at the first call, or at the installation for a script with a filter
+        String gate = "luajava.bindClass('eu.faircode.xlua.XCoreTest$Gate'):chunk()\n";
+        String script = "function before(hook, param) param:setResult('x') return true end";
+        install("builtinChunk", gate + script, get, ", \"builtin\": true");
+        assertEquals(0, Gate.chunks);
+        XBackend.Callback callback = callbacks.get(callbacks.size() - 1);
+        callback.before(new XCall(get, new Target(), new Object[0]));
+        callback.before(new XCall(get, new Target(), new Object[0]));
+        assertEquals(1, Gate.chunks);
+        Thread other = thread(() -> callback.before(new XCall(get, new Target(), new Object[0])));
+        other.start();
+        other.join();
+        assertEquals(2, Gate.chunks);
+        install("filterChunk", gate + "function filter(hook) return { '/proc/meminfo' } end\n" + script, get,
+                ", \"builtin\": true");
+        assertEquals(3, Gate.chunks);
+        assertEquals(Collections.emptyList(), failures);
+    }
+
+    // The classes of the hooks of an app are looked up once, also those which are missing, like of an SDK it does not have
+    @Test
+    public void missingClassesAreLookedUpOnce() throws Throwable {
+        List<String> asked = Collections.synchronizedList(new ArrayList<>());
+        ClassLoader loader = new ClassLoader(getClass().getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.startsWith("missing.")) {
+                    asked.add(name);
+                    throw new ClassNotFoundException(name);
+                }
+                return super.loadClass(name, resolve);
+            }
+        };
+        ApplicationInfo ai = context.getApplicationInfo();
+        Context app = new ContextWrapper(null) {
+            @Override
+            public String getPackageName() {
+                return "test.app";
+            }
+
+            @Override
+            public ApplicationInfo getApplicationInfo() {
+                return ai;
+            }
+
+            @Override
+            public ClassLoader getClassLoader() {
+                return loader;
+            }
+        };
+        List<XHook> hooks = new ArrayList<>();
+        for (String name : new String[]{"first", "second", "third"})
+            hooks.add(XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"" + name + "\"," +
+                    " \"author\": \"Test\", \"className\": \"missing.Sdk\", \"methodName\": \"hooked\"," +
+                    " \"parameterTypes\": [\"missing.Param\"], \"minSdk\": 0, \"optional\": true, \"luaScript\": \"\"}"));
+        Method installAll = XCore.class.getDeclaredMethod("installAll", Context.class, XCore.Assigned.class);
+        installAll.setAccessible(true);
+        installAll.invoke(core, app, new XCore.Assigned(hooks, new HashMap<>(), 1));
+        assertEquals(Collections.singletonList("missing.Sdk"), asked);
+        assertTrue(members.isEmpty());
+    }
+
+    // A hook of a script of a definition which hooks the methods of an object it gets: the first call hooks, and the
+    // function of the hook gets the modes the next calls set
+    private static final String DYNAMIC =
+            "local mode\n" +
+                    "function before(h, param)\n" +
+                    "  mode = param:getArgument(0)\n" +
+                    "  if mode == 'hook' then\n" +
+                    "    hook(param:getThis(), 'inherited', function(when, p)\n" +
+                    "      if mode == 'use' then return true\n" +
+                    "      elseif mode == 'none' then return false\n" +
+                    "      elseif mode == 'nothing' then return\n" +
+                    "      elseif mode == 'error' then error('boom') end\n" +
+                    "    end)\n" +
+                    "  end\n" +
+                    "  return false\n" +
+                    "end";
+
+    // The callback of a dynamic hook is like that of a definition: what the function returns is its use, an error is
+    // reported to the service and does not reach the app
+    @Test
+    public void dynamicCallbacksReportLikeOthers() throws Throwable {
+        XCore.reportDelay = TimeUnit.MILLISECONDS.toNanos(50);
+        Method open = Target.class.getMethod("open", String.class);
+        Method inherited = Target.class.getMethod("inherited");
+        install("dynamicCallbacksReportLikeOthers", DYNAMIC, open, "", true);
+        XBackend.Callback fixed = callbacks.get(0);
+        Target target = new First();
+        fixed.before(new XCall(open, target, new Object[]{"hook"}));
+        assertEquals(inherited, members.get(1));
+        XBackend.Callback dynamic = callbacks.get(1);
+        XCall call = new XCall(inherited, target, new Object[0]);
+
+        // No restriction is no use, and nothing is no value which counts
+        for (String mode : new String[]{"none", "nothing"}) {
+            fixed.before(new XCall(open, target, new Object[]{mode}));
+            dynamic.before(call);
+        }
+        Thread.sleep(200);
+        assertEquals(0, sent.size());
+
+        fixed.before(new XCall(open, target, new Object[]{"use"}));
+        dynamic.before(call);
+        assertEquals(1, sent.size());
+
+        fixed.before(new XCall(open, target, new Object[]{"error"}));
+        dynamic.before(call);
+        assertFalse(call.isReturnEarly());
+        // The error is sent by the next hooked call once the delay has passed
+        Thread.sleep(100);
+        fixed.before(new XCall(open, target, new Object[]{"none"}));
+        assertEquals(2, sent.size());
+    }
+
+    // A dynamic hook is installed when the method is hooked: another thread which hooks the same method meanwhile waits
+    // for it, and does not go on with a method which is not hooked yet
+    @Test
+    public void dynamicHookIsInstalledBeforeAnotherThreadGoesOn() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("dynamicHookIsInstalledFirst",
+                "function before(h, param) hook(param:getThis(), 'inherited', function(when, p) end) return false end", open);
+        XBackend.Callback fixed = callbacks.get(0);
+        CountDownLatch inside = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        gate = () -> {
+            gate = null;
+            inside.countDown();
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+                throw new IllegalStateException(ex);
+            }
+        };
+        Thread first = thread(() -> fixed.before(new XCall(open, new First(), new Object[]{"a"})));
+        first.start();
+        assertTrue(inside.await(5, TimeUnit.SECONDS));
+
+        Thread second = thread(() -> fixed.before(new XCall(open, new Second(), new Object[]{"b"})));
+        second.start();
+        second.join(300);
+        assertTrue("Went on before the method was hooked", second.isAlive());
+        release.countDown();
+        first.join(5000);
+        second.join(5000);
+        assertEquals(Collections.emptyList(), failures);
+        // The method of the classes is hooked once
+        assertEquals(Arrays.asList(open, Target.class.getMethod("inherited")), members);
+    }
+
+    // The functions of a runtime which hooks of its script run on other threads too do not run at the same time as the
+    // function of the hook on its own thread: no state of the script is changed by both
+    @Test
+    public void staticAndDynamicCallsOfARuntimeExcludeEachOther() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("staticAndDynamicExclude",
+                "local gate = luajava.bindClass('eu.faircode.xlua.XCoreTest$Gate')\n" +
+                        "function before(h, param)\n" +
+                        "  local mode = param:getArgument(0)\n" +
+                        "  if mode == 'hook' then\n" +
+                        "    hook(param:getThis(), 'inherited', function(when, p) gate:ran() end)\n" +
+                        "  elseif mode == 'hold' then\n" +
+                        "    gate:hold()\n" +
+                        "  end\n" +
+                        "  return false\n" +
+                        "end", open);
+        XBackend.Callback fixed = callbacks.get(0);
+        Target target = new First();
+        fixed.before(new XCall(open, target, new Object[]{"hook"}));
+        XBackend.Callback dynamic = callbacks.get(1);
+        XCall call = new XCall(Target.class.getMethod("inherited"), target, new Object[0]);
+
+        Thread other = thread(() -> {
+            Gate.inside.await();
+            dynamic.before(call);
+        });
+        other.start();
+        fixed.before(new XCall(open, target, new Object[]{"hold"}));
+        other.join(5000);
+        assertEquals(Collections.emptyList(), failures);
+        assertFalse("The dynamic function ran in the call of the static one", Gate.ranDuringStatic);
+        assertTrue(Gate.dynamicRan);
+    }
+
+    // A script which waits for a thread which runs a function of its own runtime does not hang: the function waits for
+    // the lock of the runtime for a limited time
+    @Test
+    public void callWaitingOnADynamicCallOfItsRuntimeDoesNotHang() throws Throwable {
+        Method open = Target.class.getMethod("open", String.class);
+        install("callWaitsOnDynamic",
+                "local gate = luajava.bindClass('eu.faircode.xlua.XCoreTest$Gate')\n" +
+                        "function before(h, param)\n" +
+                        "  local mode = param:getArgument(0)\n" +
+                        "  if mode == 'hook' then\n" +
+                        "    hook(param:getThis(), 'inherited', function(when, p) gate:ran() end)\n" +
+                        "  elseif mode == 'join' then\n" +
+                        "    gate:joinTask()\n" +
+                        "  end\n" +
+                        "  return false\n" +
+                        "end", open);
+        XBackend.Callback fixed = callbacks.get(0);
+        Target target = new First();
+        fixed.before(new XCall(open, target, new Object[]{"hook"}));
+        XBackend.Callback dynamic = callbacks.get(1);
+        XCall call = new XCall(Target.class.getMethod("inherited"), target, new Object[0]);
+        Gate.task = () -> {
+            try {
+                dynamic.before(call);
+            } catch (Throwable ex) {
+                failures.add(ex);
+            }
+        };
+
+        fixed.before(new XCall(open, target, new Object[]{"join"}));
+        assertEquals(Collections.emptyList(), failures);
+        assertTrue(Gate.dynamicRan);
+    }
+
+    // The error function of xpcall is of the runtime of the script, not shared by the hooks of all threads: an error of
+    // another hook does not call the handler
+    @Test
+    public void handlerOfXpcallStaysInItsRuntime() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        Method open = Target.class.getMethod("open", String.class);
+        install("xpcallInA",
+                "local gate = luajava.bindClass('eu.faircode.xlua.XCoreTest$Gate')\n" +
+                        "function before(h, param)\n" +
+                        "  xpcall(function() gate:hold() error('boom-in-A') end, function(m) return 'A-HANDLER:' .. m end)\n" +
+                        "  return false\n" +
+                        "end", get);
+        install("pcallInB",
+                "function before(h, param)\n" +
+                        "  local ok, message = pcall(function() error('boom-in-B') end)\n" +
+                        "  param:setResult(message)\n" +
+                        "  return false\n" +
+                        "end", open);
+        Thread other = thread(() -> callbacks.get(0).before(new XCall(get, new Target(), new Object[0])));
+        other.start();
+        assertTrue(Gate.inside.await(5, TimeUnit.SECONDS));
+
+        XCall call = new XCall(open, new Target(), new Object[]{"b"});
+        callbacks.get(1).before(call);
+        other.join(5000);
+        assertEquals(Collections.emptyList(), failures);
+        assertTrue(String.valueOf(call.getResult()), call.getResult().toString().contains("boom-in-B"));
+        assertFalse(String.valueOf(call.getResult()), call.getResult().toString().contains("A-HANDLER"));
+    }
+
+    // A chunk which a script loads gets the globals of the script, not those of the libraries, which all hooks share
+    @Test
+    public void loadedChunksGetTheGlobalsOfTheScript() throws Throwable {
+        Method get = Target.class.getMethod("get");
+        Method open = Target.class.getMethod("open", String.class);
+        install("loadInA",
+                "function before(h, param)\n" +
+                        "  load('leaked = function() return 1 end')()\n" +
+                        "  param:setResult(leaked ~= nil and 'own' or 'none')\n" +
+                        "  return false\n" +
+                        "end", get);
+        install("readInB", "function before(h, param) param:setResult(tostring(leaked)) return false end", open);
+        XCall own = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(own);
+        assertEquals("own", own.getResult());
+        XCall other = new XCall(open, new Target(), new Object[]{"b"});
+        callbacks.get(1).before(other);
+        assertEquals("nil", other.getResult());
+    }
+
+    // A script cannot change the libraries, which all hooks share, nor the metatable of strings, which all strings do
+    @Test
+    public void librariesCannotBeChanged() throws Throwable {
+        // Other tests make strings of libraries of their own, the engine does it once
+        XCore.protect(JsePlatform.standardGlobals());
+        Method get = Target.class.getMethod("get");
+        install("librariesCannotBeChanged",
+                "function before(h, param)\n" +
+                        "  local r = {}\n" +
+                        "  r[1] = pcall(function() string.upper = function() return 'HACKED' end end)\n" +
+                        "  r[2] = pcall(function() getmetatable('').__index.upper = function() return 'HACKED' end end)\n" +
+                        "  r[3] = pcall(function() rawset(string, 'extra', 1) end)\n" +
+                        "  r[4] = pcall(function() getmetatable(_G).__index.leak = 1 end)\n" +
+                        "  r[5] = pcall(function() table.insert(string, 'x') end)\n" +
+                        "  r[6] = pcall(function() setmetatable(string, {}) end)\n" +
+                        "  param:setResult(tostring(r[1]) .. ' ' .. tostring(r[2]) .. ' ' .. tostring(r[3]) .. ' ' ..\n" +
+                        "    tostring(r[4]) .. ' ' .. tostring(r[5]) .. ' ' .. tostring(r[6]) .. ' ' .. ('abc'):upper())\n" +
+                        "  return false\n" +
+                        "end", get);
+        XCall call = new XCall(get, new Target(), new Object[0]);
+        callbacks.get(0).before(call);
+        assertEquals("false false false false false false ABC", call.getResult());
+    }
+
+    // The service is started when the system is ready: the hooks of "android" are got then
+    @Test
+    public void androidIsHookedWhenTheSystemIsReady() throws Throwable {
+        List<String> asked = new ArrayList<>();
+        XCore.fetcher = (c, p, u) -> {
+            asked.add(p + ":" + u);
+            return null;
+        };
+        core.hookAndroid(getClass().getClassLoader());
+        Method ready = ActivityManagerService.class.getMethod("systemReady", Runnable.class, Object.class);
+        assertEquals(ready, members.get(0));
+        assertFalse(logged.toString(), logged.toString().contains("Service not started"));
+
+        XCall call = new XCall(ready, new ActivityManagerService(context), new Object[2]);
+        callbacks.get(0).before(call);
+        assertEquals(Collections.singletonList("android:" + Process.myUid()), asked);
+        // What the stubs cannot do fails inside the callback
+        callbacks.get(0).after(call);
+    }
+
+    // A system without the method which tells that it is ready never starts the service: logged, which system server does
+    @Test
+    public void missingSystemReadyIsLogged() throws Throwable {
+        noMethods = true;
+        core.hookAndroid(getClass().getClassLoader());
+        assertTrue(logged.toString(), logged.toString().contains("Service not started"));
+    }
+
+    private static XC_LoadPackage.LoadPackageParam loaded(String packageName, boolean first) {
+        XC_LoadPackage.LoadPackageParam param = new XC_LoadPackage.LoadPackageParam();
+        param.packageName = packageName;
+        param.classLoader = XCoreTest.class.getClassLoader();
+        param.isFirstApplication = first;
+        return param;
+    }
+
+    private static void inSystemServer(boolean value) throws Exception {
+        Field field = XLog.class.getDeclaredField("systemServer");
+        field.setAccessible(true);
+        field.setBoolean(null, value);
+    }
+
+    // The legacy entry point hooks what the package it is given needs: system server, the settings provider, the first
+    // package of an app; not a package which an app loads for itself
+    @Test
+    public void legacyEntryHooksByPackage() throws Throwable {
+        XCore.release();
+        Field modern = XLua.class.getDeclaredField("modern");
+        modern.setAccessible(true);
+        Object before = modern.get(null);
+        modern.set(null, Boolean.FALSE);
+        try {
+            XLua entry = new XLua();
+            XposedBridge.hookedMembers.clear();
+            entry.handleLoadPackage(loaded("android", true));
+            assertEquals(ActivityManagerService.class.getMethod("systemReady", Runnable.class, Object.class),
+                    XposedBridge.hookedMembers.get(0));
+            assertEquals("legacy", System.getProperty("eu.faircode.xlua.engine"));
+
+            XposedBridge.hookedMembers.clear();
+            entry.handleLoadPackage(loaded(XCore.SETTINGS_PACKAGE, false));
+            assertEquals(Arrays.asList(
+                    SettingsProvider.class.getMethod("call", String.class, String.class, Bundle.class),
+                    SettingsProvider.class.getMethod("query", Uri.class, String[].class, String.class, String[].class,
+                            String.class)), XposedBridge.hookedMembers);
+
+            XposedBridge.hookedMembers.clear();
+            entry.handleLoadPackage(loaded("test.app", false));
+            assertTrue(XposedBridge.hookedMembers.isEmpty());
+            entry.handleLoadPackage(loaded("test.app", true));
+            assertEquals(Collections.singletonList(
+                    NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class)),
+                    XposedBridge.hookedMembers);
+        } finally {
+            modern.set(null, before);
+            inSystemServer(false);
+            XCore.release();
+        }
+    }
+
+    // The modern entry point hooks system server when it starts, and the settings provider, which is loaded into it, but
+    // not an app, when it runs there
+    @Test
+    public void modernEntryHooksSystemServer() throws Throwable {
+        XCore.release();
+        try {
+            XLuaModule module = module(true);
+            module.onSystemServerStarting((XposedModuleInterface.SystemServerStartingParam) Proxy.newProxyInstance(
+                    getClass().getClassLoader(), new Class<?>[]{XposedModuleInterface.SystemServerStartingParam.class},
+                    (proxy, m, args) -> ("getClassLoader".equals(m.getName()) ? getClass().getClassLoader() : null)));
+            assertEquals(ActivityManagerService.class.getMethod("systemReady", Runnable.class, Object.class), hooked.get(0));
+            assertEquals("modern", System.getProperty("eu.faircode.xlua.engine"));
+
+            hooked.clear();
+            module.onPackageReady(ready(XCore.SETTINGS_PACKAGE, true));
+            assertEquals(Arrays.asList(
+                    SettingsProvider.class.getMethod("call", String.class, String.class, Bundle.class),
+                    SettingsProvider.class.getMethod("query", Uri.class, String[].class, String.class, String[].class,
+                            String.class)), hooked);
+
+            hooked.clear();
+            module.onPackageReady(ready("test.app", true));
+            assertTrue(hooked.isEmpty());
+        } finally {
+            inSystemServer(false);
+            XCore.release();
+        }
     }
 }
