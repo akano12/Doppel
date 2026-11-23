@@ -1,24 +1,23 @@
-name: Release
+name: Signed APK
 
-# Push a tag named like versionName (git tag 2.4 && git push origin 2.4) to build, sign and publish the APK.
-# Needs the secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD.
+# Builds the signed release APK and keeps it as an artifact of the run (no release is published).
+# Needs the secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD. Start by hand: gh workflow run apk.yml
 on:
   push:
-    tags: ['*']
+    branches: [master]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  apk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           # The test of the versions of Downloads reads the history of git
           fetch-depth: 0
-      - name: Tag is the versionName
-        run: grep -q "versionName = '$GITHUB_REF_NAME'" app/build.gradle
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -41,10 +40,10 @@ jobs:
           test "$(unzip -l "$apk" | grep -cE 'classes[0-9]*\.dex$')" = 1
           bt=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)
           $bt/apksigner verify --print-certs "$apk" | grep -q 'SHA-256 digest: a0f21eb39512fa904f046cf166e78607f5954f00f143002d3589ea71fdea71f4'
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" app/build/outputs/apk/release/*-release.apk --title "Doppel $GITHUB_REF_NAME" --generate-notes
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: app/build/outputs/apk/release/*-release.apk
       - name: Remove the keystore
         if: always()
         run: rm -f release.keystore keystore.properties
