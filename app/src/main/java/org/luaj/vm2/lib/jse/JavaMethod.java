@@ -44,7 +44,7 @@ import org.luaj.vm2.Varargs;
  */
 class JavaMethod extends JavaMember {
 
-	static final Map methods = new ConcurrentHashMap();
+	static final WeakCache methods = new WeakCache();
 	
 	static JavaMethod forMethod(Method m) {
 		JavaMethod j = (JavaMethod) methods.get(m);

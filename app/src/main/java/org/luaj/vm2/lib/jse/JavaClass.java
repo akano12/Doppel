@@ -51,7 +51,7 @@ import org.luaj.vm2.LuaValue;
  */
 class JavaClass extends JavaInstance implements CoerceJavaToLua.Coercion {
 
-	static final Map classes = new ConcurrentHashMap();
+	static final WeakCache classes = new WeakCache();
 
 	static final LuaValue NEW = valueOf("new");
 	

@@ -45,7 +45,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  */
 class JavaConstructor extends JavaMember {
 
-	static final Map constructors = new ConcurrentHashMap();
+	static final WeakCache constructors = new WeakCache();
 	
 	static JavaConstructor forConstructor(Constructor c) {
 		JavaConstructor j = (JavaConstructor) constructors.get(c);

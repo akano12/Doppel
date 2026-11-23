@@ -21,6 +21,9 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+      # LSPosed and Vector load a module of several dex files with a parallel stream, which leaves three common pool threads in every hooked app
+      - name: Release APK has one dex file
+        run: test "$(unzip -l app/build/outputs/apk/release/*.apk | grep -cE 'classes[0-9]*\.dex$')" = 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:

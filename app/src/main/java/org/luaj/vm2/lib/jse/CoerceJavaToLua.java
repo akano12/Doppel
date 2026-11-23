@@ -183,7 +183,6 @@ public class CoerceJavaToLua {
 			c = clazz.isArray()? arrayCoercion:
 				o instanceof LuaValue ? luaCoercion:
 					instanceCoercion;
-			COERCIONS.put( clazz, c );
 		}
 		return c.coerce(o);
 	}

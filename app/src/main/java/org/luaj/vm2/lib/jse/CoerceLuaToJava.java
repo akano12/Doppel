@@ -79,6 +79,9 @@ public class CoerceLuaToJava {
 	}
 	
 	static final Map COERCIONS = new ConcurrentHashMap();
+
+	// coercions of other classes refer to their class, so only a weak cache keeps them without keeping the class loader
+	static final WeakCache OTHERS = new WeakCache();
 	
 	static final class BoolCoercion implements Coercion {
 		public String toString() {
@@ -370,13 +373,17 @@ public class CoerceLuaToJava {
 		if ( co != null ) {
 			return co;
 		}
+		co = (Coercion) OTHERS.get( c );
+		if ( co != null ) {
+			return co;
+		}
 		if ( c.isArray() ) {
 			Class typ = c.getComponentType();
 			co = new ArrayCoercion(c.getComponentType());
 		} else {
 			co = new ObjectCoercion(c);
 		}
-		COERCIONS.put( c, co );
+		OTHERS.put( c, co );
 		return co;
 	}
 }
