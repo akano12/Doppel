@@ -11,20 +11,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The test of the versions of Downloads reads the history of git
           fetch-depth: 0
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
       - run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
       # LSPosed and Vector load a module of several dex files with a parallel stream, which leaves three common pool threads in every hooked app
       - name: Release APK has one dex file
         run: test "$(unzip -l app/build/outputs/apk/release/*.apk | grep -cE 'classes[0-9]*\.dex$')" = 1
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: reports

@@ -1,0 +1,13 @@
+# Updates the commit SHAs the workflows pin. Gradle dependencies are updated by hand, since
+# gradle/verification-metadata.xml must be regenerated with them.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']
