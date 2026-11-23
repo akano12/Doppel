@@ -1,0 +1,50 @@
+name: Release
+
+# Push a tag named like versionName (git tag 2.4 && git push origin 2.4) to build, sign and publish the APK.
+# Needs the secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD.
+on:
+  push:
+    tags: ['*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The test of the versions of Downloads reads the history of git
+          fetch-depth: 0
+      - name: Tag is the versionName
+        run: grep -q "versionName = '$GITHUB_REF_NAME'" app/build.gradle
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Keystore
+        env:
+          KS: ${{ secrets.KEYSTORE_BASE64 }}
+          SP: ${{ secrets.KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.KEY_ALIAS }}
+          KP: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KS" | base64 -d > release.keystore
+          test -s release.keystore
+          printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$SP" "$KA" "$KP" > keystore.properties
+      - run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+      - name: One dex file, signed with the key of the earlier releases
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*-release.apk)
+          test "$(unzip -l "$apk" | grep -cE 'classes[0-9]*\.dex$')" = 1
+          bt=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)
+          $bt/apksigner verify --print-certs "$apk" | grep -q 'SHA-256 digest: a0f21eb39512fa904f046cf166e78607f5954f00f143002d3589ea71fdea71f4'
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" app/build/outputs/apk/release/*-release.apk --title "Doppel $GITHUB_REF_NAME" --generate-notes
+      - name: Remove the keystore
+        if: always()
+        run: rm -f release.keystore keystore.properties
