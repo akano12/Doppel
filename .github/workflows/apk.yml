@@ -23,6 +23,9 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+        with:
+          # the job that holds the key saves no cache, which pull requests could read
+          cache-read-only: true
       - name: Keystore
         env:
           KS: ${{ secrets.KEYSTORE_BASE64 }}
