@@ -30867,7 +30867,7 @@
     "methodName": "getMobileNetworkOperator",
     "parameterTypes": [],
     "returnType": "java.lang.String",
-    "minSdk": 28,
+    "minSdk": 29,
     "luaScript": "@test_network"
   },
   // The apps and shortcuts of another user or profile by a handle the app made itself, which tell the profile is there (user_profiles)
