@@ -11,3 +11,7 @@ updates:
     groups:
       actions:
         patterns: ['*']
+    ignore:
+      # v6 bundles a proprietary caching component whose terms of use an upgrade accepts
+      - dependency-name: gradle/actions
+        update-types: ['version-update:semver-major']
