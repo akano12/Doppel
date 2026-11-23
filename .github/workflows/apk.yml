@@ -14,15 +14,15 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The test of the versions of Downloads reads the history of git
           fetch-depth: 0
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
       - name: Keystore
         env:
           KS: ${{ secrets.KEYSTORE_BASE64 }}
@@ -40,10 +40,11 @@ jobs:
           test "$(unzip -l "$apk" | grep -cE 'classes[0-9]*\.dex$')" = 1
           bt=$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)
           $bt/apksigner verify --print-certs "$apk" | grep -q 'SHA-256 digest: a0f21eb39512fa904f046cf166e78607f5954f00f143002d3589ea71fdea71f4'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: apk
+          # the APK itself, not a zip; the artifact is named after the file
           path: app/build/outputs/apk/release/*-release.apk
+          archive: false
       - name: Remove the keystore
         if: always()
         run: rm -f release.keystore keystore.properties
