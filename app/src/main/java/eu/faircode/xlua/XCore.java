@@ -1058,7 +1058,7 @@ class XCore {
         // users are run here, so their errors are reported at the installation
         final Globals installed;
         final Filter filter;
-        String key = member + "\n" + hook.getLuaScript();
+        String key = null;
         boolean once = false;
         if (hook.isBuiltin() && !script.definesFilterOrShared()) {
             installed = null;
@@ -1072,8 +1072,12 @@ class XCore {
             // and only cost time; its use is reported for the group of that hook only, like one of them reported it before
             LuaValue shared = installed.get("shared");
             once = (!shared.isnil() && shared.call(CoerceJavaToLua.coerce(hook)).toboolean());
-            if (once && sharedHooks.contains(key))
-                return;
+            if (once) {
+                // Made only here: the text of a script is large, so a key for each hook was most of what the start allocated
+                key = member + "\n" + hook.getLuaScript();
+                if (sharedHooks.contains(key))
+                    return;
+            }
             filter = getFilter(installed, hook, member);
         }
         backend.hook(member, new XBackend.Callback() {

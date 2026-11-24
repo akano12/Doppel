@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import android.util.Log;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Member;
@@ -74,10 +75,11 @@ class ModernBackend implements XBackend {
                             // are no longer found by their place. The stack is walked on the way out of an exception only,
                             // which costs about as much as making it; an exception of the app's own class which refuses,
                             // or a stack too deep to walk, is thrown as it is.
-                            try {
-                                hideHook(ex, member, new Throwable().getStackTrace());
-                            } catch (Throwable ignored) {
-                            }
+                            if (!Hidden.skip(ex, member))
+                                try {
+                                    Hidden.mark(ex, member, hideHook(ex, member, new Throwable().getStackTrace()));
+                                } catch (Throwable ignored) {
+                                }
                         }
                         call.setOutcome(result, original);
                     }
@@ -86,9 +88,10 @@ class ModernBackend implements XBackend {
 
                     if (call.hasThrowable()) {
                         // Another exception, which a script set, made under this call too
-                        if (call.getThrowable() != original)
+                        if (call.getThrowable() != original && !Hidden.skip(call.getThrowable(), member))
                             try {
-                                hideHook(call.getThrowable(), member, new Throwable().getStackTrace());
+                                Hidden.mark(call.getThrowable(), member,
+                                        hideHook(call.getThrowable(), member, new Throwable().getStackTrace()));
                             } catch (Throwable ignored) {
                             }
                         throw call.getThrowable();
@@ -108,7 +111,9 @@ class ModernBackend implements XBackend {
     // under this call, so its trace ends with the frames below here, loses them, and so do its causes and suppressed ones.
     // shortcut: an exception a script makes has no frame of the method to keep and keeps its frames, and so does a trace
     // taken inside the method, like by a callback of the app it calls, upgrade when an app is seen looking at them
-    static void hideHook(Throwable ex, Member member, StackTraceElement[] here) {
+    // Returns the number of the other hooks of the method in this call, which would find the same: the frames of all of
+    // them went from the traces, or none were there, like when the framework took them out already (LSPosed)
+    static int hideHook(Throwable ex, Member member, StackTraceElement[] here) {
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         Deque<Throwable> todo = new ArrayDeque<>();
         todo.add(ex);
@@ -122,6 +127,46 @@ class ModernBackend implements XBackend {
             if (next.getCause() != null)
                 todo.add(next.getCause());
             Collections.addAll(todo, next.getSuppressed());
+        }
+        return otherHooks(here, member);
+    }
+
+    // The interceptors of the other hooks of the method between this one and the stub, which call this one in turn
+    static int otherHooks(StackTraceElement[] here, Member member) {
+        int others = 0;
+        for (int i = 1; i < stub(here, member); i++)
+            if (here[i].getClassName().equals(here[0].getClassName()) && here[i].getMethodName().equals(here[0].getMethodName()))
+                others++;
+        return others;
+    }
+
+    // An exception passes the interceptors of all the hooks of a method on its way out, and the innermost one did the
+    // work for all of them: the others skip the walk of the stack, which costs most in a deep stack of an app with many
+    // hooks on a method (DOP-ENG-006). A hook of an outer call of the method, which recursion or a script makes, comes
+    // after them and walks the stack again; without the stub in the stack no hook skips.
+    static final class Hidden {
+        private static final ThreadLocal<Hidden> last = new ThreadLocal<>();
+
+        private final WeakReference<Throwable> ex;
+        private final Member member;
+        private int others;
+
+        private Hidden(Throwable ex, Member member, int others) {
+            this.ex = new WeakReference<>(ex);
+            this.member = member;
+            this.others = others;
+        }
+
+        static boolean skip(Throwable ex, Member member) {
+            Hidden hidden = last.get();
+            if (hidden == null || hidden.others == 0 || hidden.ex.get() != ex || !hidden.member.equals(member))
+                return false;
+            hidden.others--;
+            return true;
+        }
+
+        static void mark(Throwable ex, Member member, int others) {
+            last.set(others > 0 ? new Hidden(ex, member, others) : null);
         }
     }
 
@@ -146,20 +191,25 @@ class ModernBackend implements XBackend {
         if (original < 0)
             return null;
 
-        // The stub is the first frame below the interceptor of Doppel, whose name the interface of the framework fixes,
-        // with the name LSPlant gives it, the one of the method or "constructor"; without it only Doppel's frames go
-        int intercept = indexOf(here, 1, "intercept");
-        if (intercept < 0)
-            return null;
-        int stub = indexOf(here, intercept + 1, constructor ? "constructor" : member.getName());
+        int stub = stub(here, member);
         if (stub < 0)
-            stub = intercept;
+            return null;
 
         int below = here.length - stub - 1;
         StackTraceElement[] result = new StackTraceElement[original + 1 + below];
         System.arraycopy(trace, 0, result, 0, original + 1);
         System.arraycopy(trace, trace.length - below, result, original + 1, below);
         return result;
+    }
+
+    // The stub is the first frame below the interceptor of Doppel, whose name the interface of the framework fixes,
+    // with the name LSPlant gives it, the one of the method or "constructor"; without it only Doppel's frames go
+    private static int stub(StackTraceElement[] here, Member member) {
+        int intercept = indexOf(here, 1, "intercept");
+        if (intercept < 0)
+            return -1;
+        int stub = indexOf(here, intercept + 1, member instanceof Constructor ? "constructor" : member.getName());
+        return (stub < 0 ? intercept : stub);
     }
 
     private static int indexOf(StackTraceElement[] here, int from, String method) {

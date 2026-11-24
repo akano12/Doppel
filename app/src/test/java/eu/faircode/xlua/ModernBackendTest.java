@@ -372,6 +372,52 @@ public class ModernBackendTest {
                 ModernBackend.unhooked(once, here(trace, DOPPEL), File.class.getMethod("getCanonicalFile")));
     }
 
+    // Several hooks of one method: the innermost takes the frames of all of them out, and tells how many others there are
+    @Test
+    public void hookFramesOfSeveralHooksOfAMethod() throws Throwable {
+        StackTraceElement[] top = {
+                new StackTraceElement("java.io.UnixFileSystem", "canonicalize0", null, -2),
+                new StackTraceElement("java.io.File", "getCanonicalPath", "File.java", 618),
+        };
+        StackTraceElement inner = new StackTraceElement(
+                "eu.faircode.xlua.ModernBackend", "lambda$hook$0", "ModernBackend.java", 64); // Told apart by the line
+        StackTraceElement[] trace = frames(top, HOOK_BRIDGE, PROCEED_ORIGINAL, PROCEED_HOOKER, inner, DOPPEL_INTERCEPT,
+                PROCEED_CHAIN, PROCEED_HOOKER, DOPPEL, DOPPEL_INTERCEPT,
+                PROCEED_CHAIN, PROCEED_HOOKER, DOPPEL, DOPPEL_INTERCEPT,
+                PROCEED_CHAIN, CALLBACK, stub("getCanonicalPath"), CALLER);
+        Method member = File.class.getMethod("getCanonicalPath");
+        Throwable ex = new IllegalStateException();
+        ex.setStackTrace(trace);
+        assertEquals(2, ModernBackend.hideHook(ex, member, here(trace, inner)));
+        assertArrayEquals(frames(top, CALLER), ex.getStackTrace());
+
+        // A trace the framework took the frames of the hooks out of already stays as it is, the others need not look
+        ex.setStackTrace(frames(top, CALLER));
+        assertEquals(2, ModernBackend.hideHook(ex, member, here(trace, inner)));
+        assertArrayEquals(frames(top, CALLER), ex.getStackTrace());
+
+        // Without the stub there is nothing to tell
+        trace = frames(top, HOOK_BRIDGE, PROCEED_ORIGINAL, PROCEED_HOOKER, inner, DOPPEL_INTERCEPT,
+                PROCEED_CHAIN, PROCEED_HOOKER, DOPPEL, DOPPEL_INTERCEPT, PROCEED_CHAIN, CALLBACK, stub("other"), CALLER);
+        ex.setStackTrace(trace);
+        assertEquals(0, ModernBackend.hideHook(ex, member, here(trace, inner)));
+    }
+
+    // The other hooks of the call skip the walk for that exception and method only, as many times as there are of them
+    @Test
+    public void otherHooksSkipTheWalk() throws Throwable {
+        Method other = File.class.getMethod("exists");
+        Throwable ex = new IllegalStateException();
+        ModernBackend.Hidden.mark(ex, method, 2);
+        assertFalse(ModernBackend.Hidden.skip(new IllegalStateException(), method));
+        assertFalse(ModernBackend.Hidden.skip(ex, other));
+        assertTrue(ModernBackend.Hidden.skip(ex, getClass().getMethod("target", String.class, int.class)));
+        assertTrue(ModernBackend.Hidden.skip(ex, method));
+        assertFalse(ModernBackend.Hidden.skip(ex, method)); // A hook of an outer call of the method
+        ModernBackend.Hidden.mark(ex, method, 0);
+        assertFalse(ModernBackend.Hidden.skip(ex, method));
+    }
+
     // An exception made by a script has no frame of the method, one made under an earlier call of the hook from
     // elsewhere in the app does not end with the frames below this call
     @Test
