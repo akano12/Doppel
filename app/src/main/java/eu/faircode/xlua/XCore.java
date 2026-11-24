@@ -791,8 +791,10 @@ class XCore {
     // delays, and the hooks are installed when it does, which then reports that they were late, as the service can only
     // be told once it works. An app which the service no longer has assignments for is left alone.
     // shortcut: the hooks are installed while the app runs, like those of a script which hooks a method of an object it
-    // gets (see LuaHook), which a method run by another thread meanwhile can fail with, see hookApplication; an app
-    // which is still without hooks after the last try stays so, and nothing is reported, since the service did not answer
+    // gets (see LuaHook), see hookApplication; a method run by another thread meanwhile did not fail on a device (API 30,
+    // LSPosed 2.2.1: 1757 hooks installed late while two threads read a file every 250 ms, no exception, as LSPlant
+    // suspends all threads for each hook); an app which is still without hooks after the last try stays so, and the
+    // engine reports nothing then, as the service tells the user itself when it fails
     private void startLater(final Context context, final String packageName, final int uid, final Throwable failure,
                             final int attempt) {
         if (attempt >= lateDelays.length)
@@ -1059,8 +1061,9 @@ class XCore {
                                final Map<String, String> settings, final Member member) throws Throwable {
         // The installation runs the functions filter and shared of a script, which most scripts do not have: the scripts
         // of the app which have not are compiled, and run for their functions, by the first call of the hook on a thread,
-        // so the hooks of an app which it never calls cost the start almost nothing, which are most; the scripts of
-        // users are run here, so their errors are reported at the installation
+        // so only the work of the scripts of the hooks which the app never calls is deferred, which are most; each distinct
+        // hooked method still costs the framework about 1 ms at the start (1.0-1.3 s for 1045 methods on an API 30
+        // emulator with all groups); the scripts of users are run here, so their errors are reported at the installation
         final Globals installed;
         final Filter filter;
         // The functions filter and shared of a built-in script only read the hook, so one runtime of the script answers for
@@ -1281,9 +1284,12 @@ class XCore {
     // through the hooks of canonicalize0, which return in the service; no rule of the text of a path tells that it has
     // no link which leads to a value, as a link of the app itself or of the system does, like /etc or /sdcard, so only
     // the hooks of one call share the result, see Filter.resolved. A link changed between the hooks and the call is read
-    // as the kernel finds it: the file system resolves the path again inside the call, and only a call which returns a
-    // descriptor could be checked after it, by its link in /proc/self/fd, at the cost of a call of the system for each open;
-    // upgrade when apps are seen doing that.
+    // as the kernel finds it: the file system resolves the path again inside the call, so an app which swaps a link
+    // between the hooks and the call gets the real file through a call which returns a descriptor (seen on an API 30
+    // emulator: about 1 in 80 reads of boot_id), and param:opens resolves the path again after the call; the extra resolve
+    // costs about 8 us per call against about 48-54 us of a hooked stat (API 30 emulator), once per call; upgrade when apps
+    // are seen doing that: check the link of the descriptor in /proc/self/fd after the calls which return one (about 5 us
+    // per open).
     private static Filter getFilter(Globals globals, XHook hook, Member member) {
         LuaValue func = globals.get("filter");
         if (func.isnil())

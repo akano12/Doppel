@@ -98,7 +98,7 @@ nested classes with a $ sign, like *android.content.pm.PackageManager$NameNotFou
 and arrays with [] after the type, like *int[]* or *java.lang.String[]*.
 The *returnType* has to be the return type of the method, or a subclass of it (the type of the field for a field).
 Leave *returnType* out to skip this check, like for a method of a library in the app whose result the script does not use:
-R8 can make such a method return void when the app does not use the result. *optional* does not silence a wrong return type.
+R8 can make such a method return void when the app does not use the result. An *optional* hook whose method has another return type is skipped like a missing method, without an error; *Check* in the hook editor tells.
 
 The Lua script from the above definition without the JSON escapes looks like this:
 
