@@ -128,12 +128,9 @@ public class FragmentApps extends FragmentBase {
             }
 
             @Override
-            public void onSetAll(AdapterApp.Row row, boolean restrict) {
+            public void onRestrictAll(AdapterApp.Row row) {
                 // Like Restrict all on the screen of the app, restricting all of system server asks first
-                if (restrict)
-                    Ui.restrictAll(requireContext(), row.app, () -> setAll(row.app, true));
-                else
-                    setAll(row.app, false);
+                Ui.restrictAll(requireContext(), row.app, () -> restrictAll(row.app));
             }
 
             @Override
@@ -436,9 +433,9 @@ public class FragmentApps extends FragmentBase {
         super.onDestroyView();
     }
 
-    // All available hooks of an app, or none, like Restrict all on the screen of the app; Undo puts back the hooks
-    // assigned before
-    private void setAll(XApp app, boolean restrict) {
+    // All available hooks of an app, like Restrict all on the screen of the app; Undo puts back the hooks assigned
+    // before
+    private void restrictAll(XApp app) {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
         final List<XHook> available = Data.getAvailable(hooks, app, collection, null);
@@ -446,17 +443,15 @@ public class FragmentApps extends FragmentBase {
         for (XAssignment assignment : app.assignments)
             before.add(assignment.id);
         final Set<String> after = new HashSet<>();
-        if (restrict)
-            for (XHook hook : available)
-                after.add(hook.getId());
-        final String text = getString(restrict ? R.string.msg_restricted_all : R.string.msg_removed_all, app.getLabel());
+        for (XHook hook : available)
+            after.add(hook.getId());
+        final String text = getString(R.string.msg_restricted_all, app.getLabel());
         assigned(app, available, after);
         run(TAG, () -> {
             try {
                 change(context, app, available, before, after);
                 message(activity, text, app, after, before, available);
-                if (restrict)
-                    offerScope(activity, Collections.singletonList(app));
+                offerScope(activity, Collections.singletonList(app));
             } finally {
                 // Also after an error, else the row shows the change which was not stored
                 post(this::load);

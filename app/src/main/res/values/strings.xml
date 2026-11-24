@@ -288,8 +288,7 @@
     <string name="title_remove_all">Remove all</string>
     <string name="title_groups">Groups</string>
     <string name="title_groups_hint">A group is a set of hooks for one kind of data, like location or contacts</string>
-    <string name="title_show_actions">Show the actions</string>
-    <string name="msg_removed_all">%1$s: all restrictions removed</string>
+    <string name="title_show_groups">Show the groups</string>
     <string name="title_done">Done</string>
     <string name="title_sheet_more">Single hooks, fake values</string>
     <string name="title_section_all">All</string>
