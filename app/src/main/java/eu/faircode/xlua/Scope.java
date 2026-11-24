@@ -20,6 +20,8 @@
 package eu.faircode.xlua;
 
 import android.app.Application;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import java.util.Collection;
@@ -60,6 +62,8 @@ class Scope {
     });
     private static volatile Application application = null;
     private static volatile Set<String> told = null; // The scope last told to the service, see inScope
+    // Run on the main thread when a framework connects: the Apps tab loads again, as it could not read the scope before
+    private static volatile Runnable onBound = null;
 
     interface Callback {
         void done(boolean inScope, String error);
@@ -80,6 +84,9 @@ class Scope {
                             Log.w(TAG, "getFrameworkName: " + ex);
                         }
                         tell(s);
+                        Runnable r = onBound;
+                        if (r != null)
+                            new Handler(Looper.getMainLooper()).post(r);
                     });
                 }
 
@@ -91,6 +98,10 @@ class Scope {
         } catch (Throwable ex) {
             Log.w(TAG, "No service: " + ex);
         }
+    }
+
+    static void setOnBound(Runnable r) {
+        onBound = r;
     }
 
     // Whether the scope can be managed from here (a modern framework is connected)

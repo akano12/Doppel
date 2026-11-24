@@ -156,8 +156,6 @@
     <!-- Screen title of the top level screens -->
     <style name="XLua.Text.ScreenTitle" parent="XLua.TextAppearance.HeadlineMedium">
         <item name="android:textColor">?attr/colorOnSurface</item>
-        <!-- At the start edge also when the title is of another direction than the layout -->
-        <item name="android:textAlignment">viewStart</item>
     </style>
 
     <!-- Uppercase caption above a group of rows -->

@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -92,6 +93,7 @@ public class FragmentApps extends FragmentBase {
     private AdapterApp.Sort sort = AdapterApp.Sort.NAME;
     private final Set<AdapterApp.Section> collapsed = EnumSet.noneOf(AdapterApp.Section.class);
     private boolean loaded = false;
+    private boolean scopeUnknown = false; // The rows shown were loaded without the scope, see onResume
     private int changes = 0; // Changes made here, which a load started before does not show yet, like on the screen of an app
 
     private List<XHook> hooks = new ArrayList<>();
@@ -302,13 +304,28 @@ public class FragmentApps extends FragmentBase {
         ifPackage.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
         ifPackage.addDataScheme("package");
         ContextCompat.registerReceiver(requireContext(), packageChangedReceiver, ifPackage, ContextCompat.RECEIVER_NOT_EXPORTED);
+        // The framework connects shortly after the start; a load that ends after that checks itself, see load
+        Scope.setOnBound(() -> {
+            if (loaded && scopeUnknown) {
+                swipeRefresh.removeCallbacks(reload);
+                swipeRefresh.post(reload);
+            }
+        });
         super.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
+        Scope.setOnBound(null);
         requireContext().unregisterReceiver(packageChangedReceiver);
+    }
+
+    // ActivityMain handles rotation itself, so the overview follows the orientation here
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        updateOverview();
     }
 
     private final BroadcastReceiver packageChangedReceiver = new BroadcastReceiver() {
@@ -337,6 +354,7 @@ public class FragmentApps extends FragmentBase {
                 List<String> collection = Data.getCollection(context);
                 List<AdapterApp.Row> rows = new ArrayList<>();
                 // Null without a modern framework: the scope is not known then, so no row tells about it
+                boolean bound = Scope.available(); // a scope that cannot be read while bound is not read again
                 Set<String> scope = Scope.getScope();
                 for (XApp app : Data.getApps(context)) {
                     AdapterApp.Row row = AdapterApp.Row.summarize(app, hooks, collection);
@@ -346,13 +364,14 @@ public class FragmentApps extends FragmentBase {
                 Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size());
 
                 post(() -> {
-                    // Changed while loading: the rows show the state before, so load again
-                    if (changes != started) {
+                    // Changed while loading, or the framework connected after the scope was read: load again
+                    if (changes != started || (!bound && Scope.available())) {
                         load();
                         return;
                     }
                     this.hooks = hooks;
                     this.collection = collection;
+                    scopeUnknown = (scope == null);
                     loaded = true;
                     adapter.set(rows);
                     swipeRefresh.setRefreshing(false);

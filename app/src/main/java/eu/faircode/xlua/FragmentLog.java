@@ -21,6 +21,7 @@ package eu.faircode.xlua;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Paint;
 import android.icu.text.RelativeDateTimeFormatter;
@@ -143,6 +144,18 @@ public class FragmentLog extends FragmentBase {
         outState.putStringArrayList(STATE_EXPANDED, new ArrayList<>(expanded));
     }
 
+    // ActivityMain and ActivityLog handle rotation themselves, so the overview follows the orientation here
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (getView() != null)
+            showOverview(getView());
+    }
+
+    private void showOverview(View view) {
+        view.findViewById(R.id.cvOverview).setVisibility(getResources().getBoolean(R.bool.show_overview) ? View.VISIBLE : View.GONE);
+    }
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_log, container, false);
@@ -162,8 +175,7 @@ public class FragmentLog extends FragmentBase {
         tvCallsLabel = view.findViewById(R.id.tvCallsLabel);
         tvStats = view.findViewById(R.id.tvStats);
         vBars = view.findViewById(R.id.vBars);
-        if (!getResources().getBoolean(R.bool.show_overview))
-            view.findViewById(R.id.cvOverview).setVisibility(View.GONE);
+        showOverview(view);
         // The label and the counts do not fit next to the number at a large font, so they go below it
         if (getResources().getConfiguration().fontScale > 1.3f) {
             ((LinearLayout) view.findViewById(R.id.llCalls)).setOrientation(LinearLayout.VERTICAL);

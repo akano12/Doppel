@@ -45,6 +45,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="@string/nav_apps"
+                        android:textAlignment="viewStart"
                         android:textAppearance="@style/XLua.Text.ScreenTitle" />
 
                     <!-- Search replaces the title -->
