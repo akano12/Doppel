@@ -60,7 +60,7 @@ What an app sees
 | Contacts, calendar, call log | all of them        | hidden                   |
 | Other apps                   | all of them        | hidden                   |
 | Battery                      | 84%, charging      | 80%, no charging details |
-| Clipboard                    | what you copied    | a fake paste             |
+| Clipboard                    | what you copied    | nothing copied           |
 | `getprop`, `pm`, `cat`       | the real values    | refused                  |
 
 In the demo, AIDA64 joins Doppel's LSPosed scope from its own screen: approve the request, and *Restrict all* applies every group. Each call it makes then gets the fake values.
@@ -207,7 +207,7 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * **Get call log**: hide it, also the number of incoming and outgoing calls
 * **Get contacts**: hide contacts, optionally except (non) starred ones, and blocked numbers
 * **Get messages**: hide SMS, MMS, SIM messages and voicemail
-* **Read clipboard**: fake paste
+* **Read clipboard**: nothing copied, except the app's own copies
 * **Learn typing**: ask the keyboard not to learn what is typed, like in incognito mode; keyboards can ignore it
 * **Read notifications**: hide the notifications and media sessions of other apps
 * **Read sync data**: hide sync data

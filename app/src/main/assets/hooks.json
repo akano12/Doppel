@@ -11355,7 +11355,11 @@
   // Read clipboard
   // https://developer.android.com/reference/android/content/ClipboardManager.html
   // The clipboard manager, not the parcels of clip data, which are also of drag and drop, like the app's own drags,
-  // and of intents; getText reads the primary clip
+  // and of intents; getText reads the primary clip. A clip which is not the app's own reads as no clip, like Android
+  // answers when there is none or the app has no access to it (ClipboardService: null and false), and getPrimaryClip
+  // does not call Android for it, which would grant the app its content uris and show the notice of a paste
+  // shortcut: a raw binder transaction to the clipboard service (ServiceManager.getService("clipboard") and
+  // IBinder.transact) gets the real clip; upgrade when the engine can answer per calling uid in system server
   {
     "collection": "Privacy",
     "group": "Read.Clipboard",
@@ -11395,7 +11399,8 @@
     "minSdk": 27,
     "luaScript": "@clipboard_getprimaryclip"
   },
-  // Whether the real clip has text, which Android answers itself, not from getPrimaryClip
+  // Whether there is a clip and whether it has text, which Android answers itself, not from getPrimaryClip: false
+  // for a clip which is not the app's own
   {
     "collection": "Privacy",
     "group": "Read.Clipboard",
@@ -11403,6 +11408,18 @@
     "author": "akano12",
     "className": "android.content.ClipboardManager",
     "methodName": "hasText",
+    "parameterTypes": [],
+    "returnType": "boolean",
+    "minSdk": 27,
+    "luaScript": "@clipboard_getprimaryclip"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Clipboard",
+    "name": "ClipboardManager.hasPrimaryClip",
+    "author": "akano12",
+    "className": "android.content.ClipboardManager",
+    "methodName": "hasPrimaryClip",
     "parameterTypes": [],
     "returnType": "boolean",
     "minSdk": 27,

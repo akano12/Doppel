@@ -1532,24 +1532,17 @@ public class ValueScriptsTest {
                 .toboolean());
     }
 
-    // The clip and its description are a plain text, without the label and the types of the real clip
+    // The clip and the description of a clip which is not the app's own are none, like Android answers without a clip
     @Test
-    public void clipIsPlainText() throws Exception {
+    public void foreignClipIsNoClip() throws Exception {
         Globals globals = load("clipboard_getprimaryclip");
         Scripts.run(globals, "function clipof(count)\n" +
                 "  return { getItemCount = function(self) return count end,\n" +
-                "    getDescription = function(self) return { getTimestamp = function(self) return 0 end } end,\n" +
-                "    newPlainText = function(self, label, text) return label .. ':' .. text end }\n" +
+                "    getDescription = function(self) return { getTimestamp = function(self) return 0 end } end }\n" +
                 "end");
-        check(globals, "return after_(hookof('getPrimaryClip'), paramof(clipof(1)))", true, true, "text:Private");
-        assertFalse(Scripts.run(globals, "return after_(hookof('getPrimaryClip'), paramof(clipof(0)))").arg(2).toboolean());
+        check(globals, "return after_(hookof('getPrimaryClip'), paramof(clipof(1)))", true, true, null);
         check(globals, "return after_(hookof('getPrimaryClip'), paramof(nil))", false, false, null);
-
-        // The description is of the same fake clip
-        Scripts.run(globals, "luajava = { bindClass = function(name) assert(name == 'android.content.ClipData', name)\n" +
-                "  return { newPlainText = function(self, label, text)\n" +
-                "    return { getDescription = function(self) return 'description ' .. label .. ':' .. text end } end } end }");
-        check(globals, "return after_(hookof('getPrimaryClipDescription'), paramof('real'))", true, true, "description text:Private");
+        check(globals, "return after_(hookof('getPrimaryClipDescription'), paramof('real'))", true, true, null);
         check(globals, "return after_(hookof('getPrimaryClipDescription'), paramof(nil))", false, false, null);
     }
 

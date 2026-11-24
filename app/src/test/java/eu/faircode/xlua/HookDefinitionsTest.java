@@ -2311,10 +2311,13 @@ public class HookDefinitionsTest {
                 "@clipboard_getprimaryclip 27-");
         check("ClipboardManager.getPrimaryClipDescription", "android.content.ClipboardManager getPrimaryClipDescription() " +
                 "@clipboard_getprimaryclip 27-");
-        // The clips the app sets itself, which it gets back, and whether the real clip has text, which Android answers
+        // The clips the app sets itself, which it gets back, and whether there is a clip, with text, which Android
+        // answers
         check("ClipboardManager.setPrimaryClip", "android.content.ClipboardManager setPrimaryClip(android.content.ClipData) " +
                 "@clipboard_getprimaryclip 27-");
         check("ClipboardManager.hasText", "android.content.ClipboardManager hasText() @clipboard_getprimaryclip 27-");
+        check("ClipboardManager.hasPrimaryClip", "android.content.ClipboardManager hasPrimaryClip() " +
+                "@clipboard_getprimaryclip 27-");
     }
 
     // Other ways to apps hidden by Get.Applications: from the version which has the method, ordered and sticky
