@@ -748,7 +748,15 @@ public class XCoreTest {
         install(name, script, member, attributes, false);
     }
 
+    private void install(String name, XCore.Script script, Member member, String attributes) throws Exception {
+        install(name, script, member, attributes, false);
+    }
+
     private void install(String name, String script, Member member, String attributes, boolean usage) throws Exception {
+        install(name, new XCore.Script(script), member, attributes, usage);
+    }
+
+    private void install(String name, XCore.Script script, Member member, String attributes, boolean usage) throws Exception {
         XHook hook = XHook.fromJSON("{\"collection\": \"Test\", \"group\": \"Test.Group\", \"name\": \"" + name + "\"," +
                 " \"author\": \"Test\", \"className\": \"" + Target.class.getName() + "\", \"parameterTypes\": []," +
                 " \"minSdk\": 1, \"usage\": " + usage + ", \"luaScript\": \"\"" + attributes + "}");
@@ -756,7 +764,7 @@ public class XCoreTest {
                 Context.class, XHook.class, XCore.Script.class, Map.class, Member.class);
         installMethod.setAccessible(true);
         try {
-            installMethod.invoke(core, context, hook, new XCore.Script(script), new HashMap<String, String>(), member);
+            installMethod.invoke(core, context, hook, script, new HashMap<String, String>(), member);
         } catch (InvocationTargetException ex) {
             if (ex.getCause() instanceof Exception)
                 throw (Exception) ex.getCause();
@@ -1669,6 +1677,55 @@ public class XCoreTest {
         install("filterChunk", gate + "function filter(hook) return { '/proc/meminfo' } end\n" + script, get,
                 ", \"builtin\": true");
         assertEquals(3, Gate.chunks);
+        assertEquals(Collections.emptyList(), failures);
+    }
+
+    // The hooks of a built-in script with a filter share the runtime which the installation runs the filter in, which no
+    // hook keeps: a hook makes its own runtime at its first call on a thread, so one never called has none; the filter
+    // acts the same, and a script of a user keeps the runtime made for each of its hooks
+    @Test
+    public void installationKeepsNoRuntimes() throws Throwable {
+        Gate.reset();
+        Method open = Target.class.getMethod("open", String.class);
+        String text = "luajava.bindClass('eu.faircode.xlua.XCoreTest$Gate'):chunk()\n" +
+                "function filter(hook) return { '/proc/meminfo' } end\n" +
+                "function before(hook, param) param:setResult('fake') return true end";
+        XCore.Script script = new XCore.Script(text);
+        for (String name : new String[]{"first", "second", "third"})
+            install(name, script, open, ", \"builtin\": true");
+        // One runtime for the three filters, none kept
+        assertEquals(1, Gate.chunks);
+        assertEquals(3, callbacks.size());
+
+        // The filter answers as before
+        XCall other = new XCall(open, new Target(), new Object[]{"/data/file"});
+        callbacks.get(0).before(other);
+        assertNull(other.getResult());
+        assertEquals(1, Gate.chunks);
+        XCall filtered = new XCall(open, new Target(), new Object[]{"/proc/meminfo"});
+        callbacks.get(0).before(filtered);
+        assertEquals("fake", filtered.getResult());
+        // The first call of the hook made its runtime, once for the thread, the second call used it
+        assertEquals(2, Gate.chunks);
+        callbacks.get(0).before(new XCall(open, new Target(), new Object[]{"/proc/meminfo"}));
+        assertEquals(2, Gate.chunks);
+
+        // Each thread has a runtime of its own
+        Thread thread = thread(() -> callbacks.get(0).before(new XCall(open, new Target(), new Object[]{"/proc/meminfo"})));
+        thread.start();
+        thread.join();
+        assertEquals(3, Gate.chunks);
+
+        // The scripts of users run for each hook at the installation, and the runtime stays that of the thread
+        Gate.chunks = 0;
+        XCore.Script mine = new XCore.Script(text);
+        install("mineFirst", mine, open, "");
+        install("mineSecond", mine, open, "");
+        assertEquals(2, Gate.chunks);
+        XCall call = new XCall(open, new Target(), new Object[]{"/proc/meminfo"});
+        callbacks.get(callbacks.size() - 1).before(call);
+        assertEquals("fake", call.getResult());
+        assertEquals(2, Gate.chunks);
         assertEquals(Collections.emptyList(), failures);
     }
 

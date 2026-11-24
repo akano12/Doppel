@@ -891,6 +891,9 @@ class XCore {
                     report(context, hook.getId(), null, "install", data);
                 }
             }
+        // The hooks keep their script, which would keep the runtime of its filter
+        for (Script script : scripts.values())
+            script.evaluation = null;
     }
 
     // Whether the service runs the module of this version, which an app with assignments is told; false for an app
@@ -949,6 +952,8 @@ class XCore {
         private Exception failure = null;
         private Boolean hooks = null;
         private Boolean defines = null;
+        // The runtime which the installation of the hooks of a built-in script runs its filter and shared in, see installMethod
+        Globals evaluation = null;
 
         Script(String text) {
             this.text = text;
@@ -1058,14 +1063,23 @@ class XCore {
         // users are run here, so their errors are reported at the installation
         final Globals installed;
         final Filter filter;
+        // The functions filter and shared of a built-in script only read the hook, so one runtime of the script answers for
+        // all its hooks, and is not kept: the first call of a hook on a thread makes the runtime of that thread, like on
+        // any other, so a hook which is never called keeps no runtime, which was most of what the installed hooks retained
+        final boolean evaluates = (hook.isBuiltin() && script.definesFilterOrShared() && !script.hooks());
         String key = null;
         boolean once = false;
         if (hook.isBuiltin() && !script.definesFilterOrShared()) {
             installed = null;
             filter = null;
         } else {
-            // The runtime made for the filter is the one of this thread, so the script runs once here
-            installed = getGlobals(context, hook, script, settings);
+            // The runtime made for the filter of a script of a user is the one of this thread, so the script runs once here
+            if (evaluates) {
+                if (script.evaluation == null)
+                    script.evaluation = getGlobals(context, hook, script, settings);
+                installed = script.evaluation;
+            } else
+                installed = getGlobals(context, hook, script, settings);
             // A script whose function shared returns true acts the same for each group, like refusing programs, which each
             // group does whose fakes a program could read: of its hooks of one method only the first is installed, so a
             // call runs the script once and not once per restricted group, whose other hooks would find nothing left to do
@@ -1086,7 +1100,7 @@ class XCore {
             private final LuaValue luaHook = CoerceJavaToLua.coerce(hook);
 
             {
-                if (installed != null)
+                if (installed != null && !evaluates)
                     threadGlobals.set(installed);
             }
 
