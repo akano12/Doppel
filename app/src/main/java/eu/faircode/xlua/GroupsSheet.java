@@ -62,6 +62,7 @@ final class GroupsSheet {
     private final Activity activity;
     private final XApp app;
     private final Host host;
+    private final boolean unscoped; // Restricted but not in the framework scope when opened, which the count says
     private final List<XHook> available;
     private final Map<String, List<XHook>> groups = new LinkedHashMap<>();
     private final Set<String> assigned = new HashSet<>();
@@ -76,8 +77,8 @@ final class GroupsSheet {
 
     private BottomSheetDialog dialog;
 
-    static GroupsSheet show(Activity activity, XApp app, List<XHook> hooks, List<String> collection, Host host) {
-        GroupsSheet sheet = new GroupsSheet(activity, app, hooks, collection, host);
+    static GroupsSheet show(Activity activity, XApp app, List<XHook> hooks, List<String> collection, boolean unscoped, Host host) {
+        GroupsSheet sheet = new GroupsSheet(activity, app, hooks, collection, unscoped, host);
         sheet.show();
         return sheet;
     }
@@ -94,7 +95,8 @@ final class GroupsSheet {
         }
     }
 
-    private GroupsSheet(Activity activity, XApp app, List<XHook> hooks, List<String> collection, Host host) {
+    private GroupsSheet(Activity activity, XApp app, List<XHook> hooks, List<String> collection, boolean unscoped, Host host) {
+        this.unscoped = unscoped;
         this.activity = activity;
         this.app = app;
         this.host = host;
@@ -296,6 +298,7 @@ final class GroupsSheet {
         pi.setIndicatorColor(Ui.color(activity, complete ? androidx.appcompat.R.attr.colorPrimary : R.attr.colorWarning));
         ((TextView) view.findViewById(R.id.tvCount)).setText(restricted == 0
                 ? activity.getString(R.string.title_not_restricted)
+                : unscoped ? activity.getString(R.string.title_not_in_scope_hint)
                 : activity.getResources().getQuantityString(R.plurals.title_groups_restricted, total, restricted, total));
         MaterialSwitch swAll = view.findViewById(R.id.swAll);
         Ui.setPartial(swAll, track, restricted > 0 && !complete);

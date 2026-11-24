@@ -92,6 +92,7 @@ public class ActivityApp extends ActivityBase {
     private boolean dirty = false;
     private int changes = 0; // Changes made here, which a reload started before does not show yet
     private int scopeRequests = 0; // Scope requests made here, a newer one supersedes the ones before
+    private boolean scopePending = false; // A request waits for the user, who can deny it in the framework without a call to us
     private String reveal = null; // The id of a hook tapped in the log, shown when the restrictions are
     private String query = ""; // Of the search
     private boolean searching = false; // The search replaces the title
@@ -788,6 +789,7 @@ public class ActivityApp extends ActivityBase {
             if (checked) {
                 Ui.message(this, getString(R.string.msg_scope_requested));
                 final int request = ++scopeRequests;
+                scopePending = true;
                 run(TAG, () -> Scope.add(pkg, (nowInScope, error) -> {
                     // Also when the screen is gone, since the user can approve in a notification after leaving it:
                     // the app should not keep running without its hooks
@@ -801,6 +803,7 @@ public class ActivityApp extends ActivityBase {
                         // The framework fails a request still open when a newer one comes, which reports for itself
                         if (!nowInScope && request != scopeRequests)
                             return;
+                        scopePending = false;
                         setScope(pkg, nowInScope);
                         if (nowInScope) {
                             dirty |= !app.stopsAutomatically();
@@ -811,6 +814,27 @@ public class ActivityApp extends ActivityBase {
                 }));
             } else
                 scopeChanged(() -> Scope.remove(pkg));
+        });
+    }
+
+    // The framework does not tell a denied request (or one that timed out), so the box is checked against the real
+    // scope when the screen gets the focus back, e.g. after the notification of the request was answered
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus || !scopePending || app == null)
+            return;
+        final String pkg = app.packageName;
+        final int request = scopeRequests;
+        submit(() -> {
+            final boolean inScope = Scope.inScope(pkg);
+            postUnlessGone(() -> {
+                if (inScope || !scopePending || request != scopeRequests)
+                    return;
+                scopePending = false;
+                setScope(pkg, false);
+                Ui.message(this, getString(R.string.msg_scope_denied));
+            });
         });
     }
 

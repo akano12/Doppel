@@ -517,18 +517,21 @@ final class XNotify {
     }
 
     // Opens the restrictions of the app, on top of the screens open in the task of Doppel, like an editor with changes
-    // which are not saved: the main screen would only bring the task to the front, being the root of the task.
+    // which are not saved: the main screen under it only brings the task to the front, being the root of the task, and
+    // gives Back and Up a place to go when Doppel was not running.
     // System server may start the screen, which is not exported. One pending intent per app: Android tells them apart by
     // the request code, here the uid, which no other app of the user has, and by the data of the intent, here the package,
     // not by its extras, since apps can share a uid, where a code of a hash of both could be the one of another app.
     private static PendingIntent getAppIntent(Context context, int uid, String packageName) {
+        Intent main = new Intent()
+                .setClassName(BuildConfig.APPLICATION_ID, ActivityMain.class.getName());
         Intent app = new Intent()
                 .setClassName(BuildConfig.APPLICATION_ID, ActivityApp.class.getName())
                 .setData(Uri.fromParts("package", packageName, null))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(ActivityApp.EXTRA_PACKAGE, packageName)
                 .putExtra(ActivityApp.EXTRA_UID, uid);
-        return PendingIntent.getActivity(context, uid, app,
+        // The first intent starts the task (NEW_TASK is added to it), the others go on top of it
+        return PendingIntent.getActivities(context, uid, new Intent[]{main, app},
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 

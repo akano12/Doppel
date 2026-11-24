@@ -27,6 +27,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.annotation.NonNull;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.widget.NestedScrollView;
@@ -235,8 +236,15 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
 
         Ui.getLicenseDialog(this)
                 .setCancelable(false)
-                .setPositiveButton(R.string.title_accept, (dialog, which) ->
-                        prefs.edit().putBoolean("firstrun", false).apply())
+                .setPositiveButton(R.string.title_accept, (dialog, which) -> {
+                    prefs.edit().putBoolean("firstrun", false).apply();
+                    // Once: restricting is not enough, the app must also be in the framework scope
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle(R.string.title_first_steps)
+                            .setMessage(R.string.msg_first_steps)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
+                })
                 .setNegativeButton(R.string.title_deny, (dialog, which) -> finishAffinity())
                 .show();
     }

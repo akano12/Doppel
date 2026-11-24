@@ -49,6 +49,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -138,7 +139,7 @@ public class FragmentApps extends FragmentBase {
                 // A second tap before the sheet takes the focus would stack another one, which nothing would close
                 if (sheet != null && sheet.isOpen())
                     return;
-                sheet = GroupsSheet.show(requireActivity(), row.app, hooks, collection, new GroupsSheet.Host() {
+                sheet = GroupsSheet.show(requireActivity(), row.app, hooks, collection, row.unscoped, new GroupsSheet.Host() {
                     @Override
                     public void background(Ui.Task task) {
                         run(TAG, task);
@@ -158,6 +159,10 @@ public class FragmentApps extends FragmentBase {
                         run(TAG, () -> post(FragmentApps.this::load));
                         message(requireActivity(), getResources().getQuantityString(R.plurals.msg_groups_restricted,
                                 groups.size(), app.getLabel(), restricted.size(), groups.size()), app, after, before, available);
+                        if (!after.isEmpty()) {
+                            final Activity activity = requireActivity();
+                            run(TAG, () -> offerScope(activity, Collections.singletonList(app)));
+                        }
                     }
                 });
             }
@@ -331,8 +336,13 @@ public class FragmentApps extends FragmentBase {
                 List<XHook> hooks = Data.getHooks(context);
                 List<String> collection = Data.getCollection(context);
                 List<AdapterApp.Row> rows = new ArrayList<>();
-                for (XApp app : Data.getApps(context))
-                    rows.add(AdapterApp.Row.summarize(app, hooks, collection));
+                // Null without a modern framework: the scope is not known then, so no row tells about it
+                Set<String> scope = Scope.getScope();
+                for (XApp app : Data.getApps(context)) {
+                    AdapterApp.Row row = AdapterApp.Row.summarize(app, hooks, collection);
+                    row.unscoped = (row.restricted > 0 && Scope.isMissing(app, scope));
+                    rows.add(row);
+                }
                 Log.i(TAG, "Loaded apps=" + rows.size() + " hooks=" + hooks.size());
 
                 post(() -> {
@@ -426,6 +436,8 @@ public class FragmentApps extends FragmentBase {
             try {
                 change(context, app, available, before, after);
                 message(activity, text, app, after, before, available);
+                if (restrict)
+                    offerScope(activity, Collections.singletonList(app));
             } finally {
                 // Also after an error, else the row shows the change which was not stored
                 post(this::load);
@@ -543,7 +555,16 @@ public class FragmentApps extends FragmentBase {
         return result;
     }
 
-    // Only the apps which are changed are stopped, when they are stopped automatically
+    // The hooks of a group of an app which a bulk change touched, for Undo
+    private static class Bulked {
+        XApp app;
+        List<XHook> available;
+        Set<String> was;
+        Set<String> now;
+    }
+
+    // Only the apps which are changed are stopped, when they are stopped automatically; Undo puts back the hooks of
+    // exactly these apps
     private void bulk(String group, String title, List<XApp> apps, boolean assign) {
         final Activity activity = requireActivity();
         final Context context = activity.getApplicationContext();
@@ -552,20 +573,90 @@ public class FragmentApps extends FragmentBase {
         run(TAG, () -> {
             try {
                 Log.i(TAG, "Bulk group=" + group + " apps=" + apps.size() + " assign=" + assign);
-                int changed = 0;
+                final List<Bulked> done = new ArrayList<>();
                 for (XApp app : apps) {
                     List<XHook> available = Data.getAvailable(hooks, app, collection, group);
                     if (!available.isEmpty()) {
+                        Bulked bulked = new Bulked();
+                        bulked.app = app;
+                        bulked.available = available;
+                        bulked.was = new HashSet<>();
+                        bulked.now = new HashSet<>();
+                        for (XAssignment assignment : app.assignments)
+                            bulked.was.add(assignment.id);
+                        if (assign)
+                            for (XHook hook : available)
+                                bulked.now.add(hook.getId());
                         Data.assign(context, app, available, assign);
-                        changed++;
+                        done.add(bulked);
                     }
                 }
                 Ui.message(activity, activity.getResources().getQuantityString(
-                        assign ? R.plurals.msg_bulk_added : R.plurals.msg_bulk_removed, changed, title, changed));
+                                assign ? R.plurals.msg_bulk_added : R.plurals.msg_bulk_removed, done.size(), title, done.size()),
+                        activity.getString(R.string.title_undo), () -> {
+                            for (Bulked bulked : done)
+                                assigned(bulked.app, bulked.available, bulked.was);
+                            run(TAG, () -> {
+                                try {
+                                    for (Bulked bulked : done)
+                                        change(context, bulked.app, bulked.available, bulked.now, bulked.was);
+                                } finally {
+                                    post(this::load);
+                                }
+                            });
+                        });
+                if (assign) {
+                    List<XApp> added = new ArrayList<>();
+                    for (Bulked bulked : done)
+                        added.add(bulked.app);
+                    offerScope(activity, added);
+                }
             } finally {
                 // Also the apps changed before an error
                 post(this::load);
             }
+        });
+    }
+
+    // After apps were restricted: tells which of them are not in the framework scope, where nothing is applied until
+    // they are, and offers to add them; on the background thread, nothing without a modern framework
+    private void offerScope(Activity activity, List<XApp> apps) {
+        Set<String> scope = Scope.getScope();
+        final List<XApp> missing = new ArrayList<>();
+        for (XApp app : apps)
+            if (Scope.isMissing(app, scope))
+                missing.add(app);
+        if (missing.isEmpty())
+            return;
+        activity.runOnUiThread(() -> {
+            if (activity.isFinishing() || activity.isDestroyed())
+                return;
+            new MaterialAlertDialogBuilder(activity)
+                    .setMessage(getResources().getQuantityString(R.plurals.msg_scope_offer,
+                            missing.size(), missing.get(0).getLabel(), missing.size()))
+                    .setPositiveButton(R.string.title_add_to_scope, (dialog, which) -> {
+                        Ui.message(activity, getString(R.string.msg_scope_requested));
+                        List<String> packages = new ArrayList<>();
+                        for (XApp app : missing)
+                            packages.add(app.packageName);
+                        final Context context = activity.getApplicationContext();
+                        run(TAG, () -> Scope.add(packages, (inScope, error) -> {
+                            // The apps start in the scope once stopped, like on the screen of the app
+                            if (inScope)
+                                for (XApp app : missing)
+                                    try {
+                                        if (app.stopsAutomatically())
+                                            Data.forceStop(context, app);
+                                    } catch (Throwable ex) {
+                                        error(TAG, ex);
+                                    }
+                            else if (error != null)
+                                Ui.message(activity, getString(R.string.msg_scope_failed, error));
+                            post(this::load);
+                        }));
+                    })
+                    .setNegativeButton(R.string.title_not_now, null)
+                    .show();
         });
     }
 }

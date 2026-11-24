@@ -98,6 +98,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         long assigned = -1; // Last time a hook was assigned by the user or for a new app
         boolean error;
         boolean partial; // Hooks which are not assigned, also when all groups are restricted
+        boolean unscoped; // Restricted, but not in the framework scope, so nothing is applied; only where the scope is known
 
         private Ui.Haystack haystack = null;
 
@@ -167,6 +168,11 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return (restricted < groups || partial);
         }
 
+        // Restricted and applied; an app outside the scope keeps its restrictions but runs without hooks
+        boolean isRestricted() {
+            return (restricted > 0 && !unscoped);
+        }
+
         boolean canRemove() {
             return (restricted > 0);
         }
@@ -184,6 +190,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             return (groups == other.groups &&
                     restricted == other.restricted &&
                     partial == other.partial &&
+                    unscoped == other.unscoped &&
                     used == other.used &&
                     assigned == other.assigned &&
                     error == other.error &&
@@ -209,7 +216,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             for (Row row : rows)
                 if (matches(row, filter)) {
                     summary.total++;
-                    if (row.restricted > 0)
+                    if (row.isRestricted())
                         summary.restricted++;
                     Section section = row.getSection(now);
                     if (section == Section.ATTENTION || section == Section.NEW)
@@ -397,7 +404,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         List<Row> result = new ArrayList<>();
         for (Row row : all) {
             XApp app = row.app;
-            boolean isRestricted = (row.restricted > 0); // Like the row shows it
+            boolean isRestricted = row.isRestricted(); // Like the row shows it
             if (!matches(row, filter))
                 continue;
             if ((restricted && !isRestricted) || (unrestricted && isRestricted))
@@ -947,6 +954,10 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             badge = Ui.Badge.NEUTRAL;
             tv.setText(R.string.title_off);
             tv.setContentDescription(context.getString(R.string.title_not_restricted));
+        } else if (row.unscoped) {
+            badge = Ui.Badge.WARNING;
+            tv.setText(R.string.title_not_in_scope);
+            tv.setContentDescription(context.getString(R.string.title_not_in_scope_hint));
         } else {
             badge = (row.restricted >= row.groups ? Ui.Badge.ACCENT : Ui.Badge.WARNING);
             tv.setText(String.format(Locale.getDefault(), "%d/%d", row.restricted, row.groups));

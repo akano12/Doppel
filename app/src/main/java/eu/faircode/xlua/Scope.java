@@ -114,6 +114,29 @@ class Scope {
         }
     }
 
+    // The packages in the scope, or null when it cannot be read (no modern framework); one call for many apps
+    static Set<String> getScope() {
+        XposedService s = service.get();
+        if (s == null)
+            return null;
+        try {
+            List<String> scope = s.getScope();
+            if (!new TreeSet<>(scope).equals(told))
+                tell(scope);
+            return new TreeSet<>(scope);
+        } catch (Throwable ex) {
+            Log.w(TAG, "getScope: " + ex);
+            return null;
+        }
+    }
+
+    // Whether the app is outside the scope read by getScope (null: not known); not for system server or Doppel itself,
+    // whose scope the toggle does not offer either
+    static boolean isMissing(XApp app, Set<String> scope) {
+        return (scope != null && !app.isSystemServer() && !BuildConfig.APPLICATION_ID.equals(app.packageName) &&
+                !scope.contains(app.packageName));
+    }
+
     // Tell the service the scope of the framework, after a change or when the framework connects; blocking
     private static void tell(XposedService s) {
         try {
@@ -140,18 +163,23 @@ class Scope {
 
     // Ask the framework to add the app to the scope; the framework asks the user, then the callback reports the result
     static void add(String packageName, Callback callback) {
+        add(Collections.singletonList(packageName), callback);
+    }
+
+    // Also for several apps at once; inScope tells that all of them were added
+    static void add(List<String> packageNames, Callback callback) {
         XposedService s = service.get();
         if (s == null) {
             callback.done(false, "no service");
             return;
         }
         try {
-            s.requestScope(Collections.singletonList(packageName), new XposedService.OnScopeEventListener() {
+            s.requestScope(packageNames, new XposedService.OnScopeEventListener() {
                 @Override
                 public void onScopeRequestApproved(List<String> approved) {
                     // Before the caller stops the app, which then starts in the scope
                     tell(s);
-                    callback.done(approved.contains(packageName), null);
+                    callback.done(approved.containsAll(packageNames), null);
                 }
 
                 @Override

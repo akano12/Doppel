@@ -296,6 +296,17 @@
     <string name="title_scope_hint">Load Doppel into the app so its restrictions apply</string>
     <string name="msg_scope_requested">Approve the request from the framework to add the app</string>
     <string name="msg_scope_failed">Could not change the scope: %1$s</string>
+    <string name="msg_scope_denied">The app was not added to the scope</string>
+    <string name="title_not_in_scope">No scope</string>
+    <string name="title_not_in_scope_hint">Restricted, but not in the framework scope: nothing is applied</string>
+    <string name="title_add_to_scope">Add to scope</string>
+    <string name="title_not_now">Not now</string>
+    <plurals name="msg_scope_offer">
+        <item quantity="one">%1$s is restricted but not in the framework scope, so nothing is applied to it. Add it to the scope?</item>
+        <item quantity="other">%2$d apps are restricted but not in the framework scope, so nothing is applied to them. Add them to the scope?</item>
+    </plurals>
+    <string name="title_first_steps">Before you start</string>
+    <string name="msg_first_steps">An app is protected when it is restricted here and also added to Doppel\'s scope in the framework (LSPosed). Apps outside the scope show \"No scope\" in the list.</string>
     <string name="title_force_stop">Stop automatically</string>
     <string name="title_force_stop_hint">Stop the app to apply changes right away</string>
     <string name="title_notify_usage">Notify on restriction</string>
