@@ -23,23 +23,32 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.method.DigitsKeyListener;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.core.widget.NestedScrollView;
 
-import com.google.android.material.button.MaterialButton;
+import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
@@ -49,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -116,9 +126,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             new Field("location.latitude", R.string.title_value_latitude, Type.NUMBER, "0"),
             new Field("location.longitude", R.string.title_value_longitude, Type.NUMBER, "0"),
             new Field("location.accuracy", R.string.title_value_accuracy, Type.NUMBER, "10000"),
-            R.string.section_other,
+            R.string.section_region,
             new Field("value.timezone", R.string.title_value_timezone, Type.TIMEZONE, "UTC"),
             new Field("value.locale", R.string.title_value_locale, Type.TEXT, "en-US"),
+            R.string.section_device,
             new Field("features.keep", R.string.title_value_features, Type.TEXT, null),
             new Field("contacts.starred", R.string.title_value_contacts, Type.CONTACTS, null),
     };
@@ -152,6 +163,30 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private List<XHook> hooks = new ArrayList<>();
     private List<String> collection = new ArrayList<>();
 
+    // The row of a value: its title and what applies, which opens to the editor of the value; for an app, the switch
+    // of its own value, which chooses the mode All apps or Fixed for an identifier and empties another value
+    private static class Row {
+        Field field;
+        View view;
+        View editor;
+        TextView tvValue;
+        TextView tvTag;
+        TextView tvPill;
+        ImageView ivExpand;
+        MaterialSwitch swOwn;
+        ChipGroup readers;
+        View section;
+    }
+
+    private final Map<String, Row> rows = new LinkedHashMap<>();
+    private final Set<String> expanded = new HashSet<>(); // Rows open, also after the form is built again
+    private final Set<String> opened = new HashSet<>(); // Own values switched on which are still empty
+    private final Map<View, Chip> sectionChips = new LinkedHashMap<>();
+    private TitleSearch search;
+    private String query = "";
+    private boolean ownOnly = false;
+    private int jumpY = -1; // Where a chip scrolls to, until then the chip of the section on top is not followed
+
     static Intent getIntent(Context context, String packageName, String label) {
         Intent intent = new Intent(context, ActivityValues.class);
         intent.putExtra(EXTRA_PACKAGE, packageName);
@@ -182,36 +217,44 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             }
         }
 
-        toolbarSummary = new ToolbarSummary(setupToolbar(getString(R.string.title_values)),
-                findViewById(R.id.svValues), findViewById(R.id.tvHint));
-
-        // Values of an app replace the values for all apps
-        ChipGroup cgScope = findViewById(R.id.cgScope);
-        if (packageName != null) {
-            ((Chip) findViewById(R.id.chipScopeApp)).setText(label);
-            cgScope.setVisibility(View.VISIBLE);
-            cgScope.check(GLOBAL.equals(category) ? R.id.chipScopeGlobal : R.id.chipScopeApp);
-            cgScope.setOnCheckedStateChangeListener((group, checkedIds) -> {
-                if (checkedIds.isEmpty())
-                    return;
-                String selected = (checkedIds.get(0) == R.id.chipScopeApp ? packageName : GLOBAL);
-                if (selected.equals(category))
-                    return;
-                // Nothing is entered for the other scope yet; the form shows the old scope until it is built,
-                // its discarded values should not be saved for the other scope on a recreation meanwhile
-                Runnable change = () -> {
-                    category = selected;
-                    restored = new HashMap<>();
-                    load();
-                };
-                // Switching discards changes which are not saved, keeping them selects the values shown again
-                if (!hasChanges())
-                    change.run();
-                else
-                    confirmDiscard(change, () ->
-                            group.check(GLOBAL.equals(category) ? R.id.chipScopeGlobal : R.id.chipScopeApp));
-            });
+        // Values of an app replace the values for all apps; a scope of all apps kept by an older version of this
+        // screen, which could switch to it, opens as the values of the app, without what was entered there
+        if (packageName != null && !packageName.equals(category)) {
+            category = packageName;
+            restored = null;
         }
+
+        MaterialToolbar toolbar = setupToolbar(getString(R.string.title_values));
+        toolbarSummary = new ToolbarSummary(toolbar, findViewById(R.id.svValues), findViewById(R.id.tvHint));
+        search = TitleSearch.ofTitle(this, show -> {
+            toolbar.setTitle(show ? getString(R.string.title_values) : null);
+            toolbarSummary.setHidden(!show);
+        }, findViewById(R.id.tilSearch), findViewById(R.id.etSearch), findViewById(R.id.ibSearch), text -> {
+            query = text.trim().toLowerCase(Locale.ROOT);
+            updateRows();
+        });
+        search.attach();
+
+        // The values of the app only
+        Chip chipOwn = findViewById(R.id.chipOwn);
+        chipOwn.setVisibility(packageName == null ? View.GONE : View.VISIBLE);
+        chipOwn.setContentDescription(getString(R.string.title_own_filter));
+        chipOwn.setOnCheckedChangeListener((chip, checked) -> {
+            ownOnly = checked;
+            updateRows();
+        });
+
+        // The chip of the section on top follows the scroll, except while a chip scrolls to its section
+        NestedScrollView svValues = findViewById(R.id.svValues);
+        svValues.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (v, x, y, ox, oy) -> {
+            if (jumpY >= 0) {
+                int max = Math.max(0, v.getChildAt(0).getHeight() - v.getHeight());
+                if (Math.abs(y - Math.min(jumpY, max)) <= 2)
+                    jumpY = -1;
+                return;
+            }
+            followSection();
+        });
 
         findViewById(R.id.btnSave).setOnClickListener(view -> save());
         findViewById(R.id.btnDiscard).setOnClickListener(view -> {
@@ -336,6 +379,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 for (Map.Entry<String, String> entry : restored.entrySet())
                     setEntered(entry.getKey(), entry.getValue());
                 restored = null;
+                updateRows();
                 updateBar();
             });
         }, ex -> {
@@ -345,33 +389,99 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         });
     }
 
+    // The hint of the screen; for an app with the way to the values of all apps, which apply where it has none
+    private void bindHint() {
+        TextView tvHint = findViewById(R.id.tvHint);
+        if (GLOBAL.equals(category)) {
+            tvHint.setText(getString(R.string.title_values_global_hint));
+            tvHint.setMovementMethod(null);
+            return;
+        }
+        SpannableStringBuilder text = new SpannableStringBuilder(getString(R.string.title_values_app_switch_hint, label));
+        text.append(' ');
+        int start = text.length();
+        text.append(getString(R.string.title_values_global));
+        text.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(@NonNull View widget) {
+                startActivity(getIntent(ActivityValues.this, null, null));
+            }
+        }, start, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        tvHint.setText(text);
+        tvHint.setMovementMethod(LinkMovementMethod.getInstance());
+    }
+
     private void buildForm() {
         boolean global = GLOBAL.equals(category);
         toolbarSummary.setSummary(global ? getString(R.string.title_all_apps) : label);
-        ((TextView) findViewById(R.id.tvHint)).setText(global
-                ? getString(R.string.title_values_global_hint)
-                : getString(R.string.title_values_app_hint, label));
+        bindHint();
 
         LinearLayout container = findViewById(R.id.llValues);
         container.removeAllViews();
         inputs.clear();
         modes.clear();
         hints.clear();
+        rows.clear();
+        opened.clear();
+        sectionChips.clear();
+        ChipGroup cgSections = findViewById(R.id.cgSections);
+        cgSections.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
-        LinearLayout rows = null;
+        View section = null;
+        LinearLayout llRows = null;
         for (Object item : form) {
             if (item instanceof Integer) {
-                View card = inflater.inflate(R.layout.item_card, container, false);
-                TextView tvSection = card.findViewById(R.id.tvSection);
+                section = inflater.inflate(R.layout.item_value_section, container, false);
+                TextView tvSection = section.findViewById(R.id.tvSection);
                 tvSection.setText((Integer) item);
                 ViewCompat.setAccessibilityHeading(tvSection, true);
-                rows = card.findViewById(R.id.llRows);
-                container.addView(card);
+                llRows = section.findViewById(R.id.llRows);
+                container.addView(section);
+
+                // The chip of the section scrolls to it
+                Chip chip = (Chip) inflater.inflate(R.layout.item_section_chip, cgSections, false);
+                chip.setId(View.generateViewId());
+                chip.setText((Integer) item);
+                final View target = section;
+                chip.setOnClickListener(v -> jumpTo(target));
+                cgSections.addView(chip);
+                sectionChips.put(section, chip);
                 continue;
             }
 
             final Field field = (Field) item;
             String value = values.get(field.key);
+
+            // The row of the value, which opens to the editor below it
+            final Row row = new Row();
+            row.field = field;
+            row.section = section;
+            row.view = inflater.inflate(R.layout.item_value_row, llRows, false);
+            row.editor = row.view.findViewById(R.id.llEditor);
+            row.tvValue = row.view.findViewById(R.id.tvValue);
+            row.tvTag = row.view.findViewById(R.id.tvTag);
+            row.tvPill = row.view.findViewById(R.id.tvPill);
+            row.ivExpand = row.view.findViewById(R.id.ivExpand);
+            row.swOwn = row.view.findViewById(R.id.swOwn);
+            String title = (field.title == 0 ? field.key : getString(field.title));
+            TextView tvRowTitle = row.view.findViewById(R.id.tvTitle);
+            tvRowTitle.setText(title);
+            if (field.title == 0) {
+                tvRowTitle.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(this, R.font.plex_mono));
+                tvRowTitle.setTextDirection(View.TEXT_DIRECTION_LTR);
+            }
+            row.swOwn.setVisibility(global ? View.GONE : View.VISIBLE);
+            row.swOwn.setContentDescription(getString(R.string.title_own_value, title));
+            row.swOwn.setOnClickListener(v -> setOwn(row, row.swOwn.isChecked()));
+            row.view.findViewById(R.id.llHead).setOnClickListener(v -> {
+                if (global || isOwn(row))
+                    setExpanded(row, !expanded.contains(field.key));
+                else
+                    setOwn(row, true);
+            });
+            llRows.addView(row.view);
+            rows.put(field.key, row);
+            LinearLayout editor = (LinearLayout) row.editor;
 
             int layout;
             if (isDropdown(field))
@@ -380,30 +490,27 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 layout = R.layout.item_value_auto;
             else
                 layout = R.layout.item_value_text;
-            TextInputLayout til = (TextInputLayout) inflater.inflate(layout, rows, false);
-            if (field.title == 0)
-                til.setHint(field.key);
-            else
-                til.setHint(field.title);
+            // The field has no label, which would take room above the text: the row has the title, which screen
+            // readers name the field by, and an empty field shows what applies then, see getPlaceholder
+            TextInputLayout til = (TextInputLayout) inflater.inflate(layout, editor, false);
             EditText input = til.findViewById(R.id.etValue);
+            input.setContentDescription(title);
             boolean id = FakeIds.isId(field.key);
             Mode mode = (id ? new Mode() : null);
             if (id) {
-                // The title is above the choice, the field of the value follows
-                View view = inflater.inflate(R.layout.item_value_mode, rows, false);
+                // The row has the title; the choice is above the field of the value. For an app the switch of the
+                // row chooses the values of all apps, so the choice has Fixed and Each boot only
+                View view = inflater.inflate(R.layout.item_value_mode, editor, false);
                 mode.field = field;
                 mode.group = view.findViewById(R.id.tgMode);
                 mode.box = view.findViewById(R.id.llBox);
                 mode.tvBox = view.findViewById(R.id.tvBox);
                 mode.tvBoxValue = view.findViewById(R.id.tvBoxValue);
                 mode.cbAll = view.findViewById(R.id.cbAll);
-                TextView tvTitle = view.findViewById(R.id.tvTitle);
-                tvTitle.setText(field.title);
-                til.setHint(null);
-                input.setId(View.generateViewId());
-                tvTitle.setLabelFor(input.getId());
-                view.findViewById(R.id.btnInherit).setVisibility(global ? View.GONE : View.VISIBLE);
-                rows.addView(view);
+                view.findViewById(R.id.tvTitle).setVisibility(View.GONE);
+                ((LinearLayout.LayoutParams) view.getLayoutParams()).topMargin = 0;
+                view.findViewById(R.id.btnInherit).setVisibility(View.GONE);
+                editor.addView(view);
                 modes.put(field.key, mode);
             }
 
@@ -415,6 +522,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 dropdown.setText(titles[index], false);
                 if (field.type == Type.LOCATION)
                     Ui.onTextChanged(dropdown, text -> updateLocationHints());
+                Ui.onTextChanged(dropdown, text -> updateRow(row));
             } else {
                 if (field.type == Type.TIMEZONE)
                     ((MaterialAutoCompleteTextView) input).setSimpleItems(TimeZone.getAvailableIDs());
@@ -425,6 +533,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                             InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
                 }
                 input.setText(value);
+                input.setHint(getPlaceholder(field));
                 til.setHelperText(getFallbackHint(field));
 
                 // A value can be cleared by itself, an empty field removes the value when saved
@@ -435,42 +544,284 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 }
             }
 
+            inputs.put(field.key, til);
             if (id) {
-                // The randomize button next to the field
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                row.addView(til, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-                MaterialButton shuffle = new MaterialButton(this, null,
-                        com.google.android.material.R.attr.materialIconButtonStyle);
-                shuffle.setIconResource(R.drawable.ic_shuffle);
-                shuffle.setContentDescription(getString(R.string.title_randomize_field, getString(field.title)));
-                shuffle.setOnClickListener(view -> input.setText(FakeIds.generate(field.key, random)));
-                row.addView(shuffle);
-                rows.addView(row);
-                mode.row = row;
+                // The randomize button at the end of the field, in the place of the button which clears it
+                til.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
+                til.setEndIconDrawable(R.drawable.ic_shuffle);
+                til.setEndIconTintList(Ui.tint(this, androidx.appcompat.R.attr.colorPrimary));
+                til.setEndIconContentDescription(getString(R.string.title_randomize_field, getString(field.title)));
+                til.setEndIconOnClickListener(view -> input.setText(FakeIds.generate(field.key, random)));
+                editor.addView(til);
+                mode.row = til;
                 initMode(mode);
             } else
-                rows.addView(til);
-            inputs.put(field.key, til);
+                editor.addView(til);
             // An error is of the text it was given for
             Ui.onTextChanged(input, text -> {
                 til.setError(null);
+                updateRow(row);
                 updateBar();
             });
 
             // The groups which read the value, under it
             List<String> groups = readers.get(field.key);
-            if (groups != null)
+            if (groups != null) {
+                row.readers = new ChipGroup(this);
+                row.readers.setChipSpacingVertical(0);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                lp.topMargin = Math.round(4 * getResources().getDisplayMetrics().density);
+                editor.addView(row.readers, lp);
                 for (String group : groups) {
-                    View hint = inflater.inflate(R.layout.item_value_hint, rows, false);
+                    Chip hint = (Chip) inflater.inflate(R.layout.item_value_reader, row.readers, false);
                     hint.setTag(group);
-                    rows.addView(hint);
+                    row.readers.addView(hint);
                     hints.add(hint);
                 }
+            }
+
+            if (expanded.contains(field.key))
+                row.editor.setVisibility(View.VISIBLE);
         }
         updateLocationHints();
         bindHints();
+        updateRows();
+        // The sections have their places once they are laid out
+        findViewById(R.id.svValues).post(this::followSection);
+    }
+
+    // Whether the app has its own value, or one switched on which is still empty; always for all apps
+    private boolean isOwn(Row row) {
+        if (GLOBAL.equals(category))
+            return true;
+        Field field = row.field;
+        Mode mode = modes.get(field.key);
+        if (mode != null)
+            return !INHERIT.equals(getMode(mode));
+        TextInputLayout til = inputs.get(field.key);
+        if (til == null)
+            return false;
+        return (getValue(field, til.getEditText()) != null || (!isDropdown(field) && opened.contains(field.key)));
+    }
+
+    // Switching on an own value of the app chooses Fixed, or the choice of all apps of a list, and opens the editor;
+    // switching it off chooses the values of all apps, which empties the field
+    private void setOwn(Row row, boolean own) {
+        Field field = row.field;
+        Mode mode = modes.get(field.key);
+        TextInputLayout til = inputs.get(field.key);
+        EditText input = (til == null ? null : til.getEditText());
+        if (mode != null)
+            mode.group.check(own ? R.id.btnFixed : R.id.btnInherit);
+        else if (input != null && isDropdown(field)) {
+            String[] titles = getDropdownTitles(field);
+            int index = 0;
+            if (own) {
+                index = Arrays.asList(dropdownValues(field)).indexOf(globals.get(field.key));
+                if (index <= 0)
+                    index = 1;
+            }
+            ((MaterialAutoCompleteTextView) input).setText(titles[index], false);
+        } else if (input != null) {
+            if (own)
+                opened.add(field.key);
+            else {
+                opened.remove(field.key);
+                input.setText(null);
+            }
+        }
+        setExpanded(row, own);
+        if (own && input != null && mode == null && !isDropdown(field)) {
+            input.requestFocus();
+            new WindowInsetsControllerCompat(getWindow(), input).show(WindowInsetsCompat.Type.ime());
+        }
+        updateRows();
+        updateBar();
+    }
+
+    private void setExpanded(Row row, boolean expand) {
+        if (expand)
+            expanded.add(row.field.key);
+        else
+            expanded.remove(row.field.key);
+        row.editor.setVisibility(expand ? View.VISIBLE : View.GONE);
+        updateRow(row);
+    }
+
+    // What applies in the row: the value entered or chosen, else the value for all apps or the default, with a tag
+    // which tells which; for an identifier also its mode
+    private void updateRow(Row row) {
+        if (row == null || row.view == null)
+            return;
+        Field field = row.field;
+        boolean global = GLOBAL.equals(category);
+        boolean own = isOwn(row);
+        Mode mode = modes.get(field.key);
+        TextInputLayout til = inputs.get(field.key);
+        EditText input = (til == null ? null : til.getEditText());
+
+        String value = null;
+        Integer tag = null;
+        Integer pill = null;
+        if (mode != null) {
+            String chosen = getMode(mode);
+            if (INHERIT.equals(chosen)) {
+                String inherited = FakeIds.getMode(field.key, globals, null);
+                // The value the app gets, which the service derives for it when all apps have none, see updateMode
+                String boot = (INHERIT.equals(getSavedMode(field.key)) ? bootValues.get(field.key) : null);
+                if (FakeIds.FIXED.equals(inherited))
+                    value = (globals.get(field.key) == null && field.builtin == null && boot != null
+                            ? boot : getDefault(field, globals.get(field.key)));
+                else
+                    value = (boot == null ? getString(R.string.title_mode_boot) : boot);
+                tag = R.string.title_tag_all_apps;
+            } else if (FakeIds.FIXED.equals(chosen)) {
+                value = (input == null ? null : getValue(field, input));
+                if (value == null) {
+                    value = getDefault(field, null);
+                    if (field.builtin != null || FakeIds.ANDROID_ID.equals(field.key))
+                        tag = R.string.title_tag_default;
+                }
+                pill = R.string.title_mode_fixed;
+            } else {
+                String boot = (chosen.equals(getSavedMode(field.key)) ? bootValues.get(field.key) : null);
+                value = (boot == null ? getString(R.string.title_mode_boot) : boot);
+                pill = R.string.title_mode_boot;
+            }
+        } else if (input != null && isDropdown(field)) {
+            String[] names = getResources().getStringArray(
+                    field.type == Type.LOCATION ? R.array.location_types : R.array.contacts_types);
+            int index = Math.max(0, Arrays.asList(dropdownValues(field)).indexOf(getValue(field, input)));
+            if (index == 0 && !global) {
+                int inherited = Arrays.asList(dropdownValues(field)).indexOf(globals.get(field.key));
+                value = names[Math.max(0, inherited)];
+                tag = R.string.title_tag_all_apps;
+            } else
+                value = names[index];
+        } else if (input != null) {
+            value = getValue(field, input);
+            if (value == null) {
+                // An app without its own value gets the one of all apps, also where that is the default
+                if (!global) {
+                    value = (globals.get(field.key) != null ? globals.get(field.key) : field.builtin != null ? field.builtin
+                            : getString(field.title == 0 ? R.string.title_value_not_set : R.string.title_value_none));
+                    tag = R.string.title_tag_all_apps;
+                } else if (field.builtin != null) {
+                    value = field.builtin;
+                    tag = R.string.title_tag_default;
+                } else
+                    value = getString(field.title == 0 ? R.string.title_value_not_set : R.string.title_value_none);
+            }
+        }
+
+        row.tvValue.setText(value);
+        row.tvValue.setTextColor(Ui.color(this, own && !global
+                ? androidx.appcompat.R.attr.colorPrimary : com.google.android.material.R.attr.colorOnSurfaceVariant));
+        row.tvTag.setText(tag == null ? null : getString(tag));
+        row.tvTag.setVisibility(tag == null ? View.GONE : View.VISIBLE);
+        row.tvPill.setText(pill == null ? null : getString(pill));
+        row.tvPill.setVisibility(pill == null || !own ? View.GONE : View.VISIBLE);
+        boolean open = expanded.contains(field.key);
+        row.ivExpand.setVisibility(own ? View.VISIBLE : View.GONE);
+        row.ivExpand.setRotation(open ? 180 : 0);
+        if (!global)
+            row.swOwn.setChecked(own);
+        // An app's value switched off has nothing to edit
+        if (!own && open) {
+            expanded.remove(field.key);
+            row.editor.setVisibility(View.GONE);
+        }
+    }
+
+    // What an empty field gives: for an app the value for all apps, else the default of the script, else none
+    private String getPlaceholder(Field field) {
+        String inherited = (GLOBAL.equals(category) ? null : globals.get(field.key));
+        if (inherited != null)
+            return inherited;
+        if (field.builtin != null)
+            return field.builtin;
+        if (FakeIds.ANDROID_ID.equals(field.key))
+            return getString(R.string.title_value_android_id_default);
+        return getString(field.title == 0 ? R.string.title_value_not_set : R.string.title_value_none);
+    }
+
+    // A fixed value which is not set: the value for all apps, else the default of the script
+    private String getDefault(Field field, String inherited) {
+        if (inherited != null)
+            return inherited;
+        if (field.builtin != null)
+            return field.builtin;
+        if (FakeIds.ANDROID_ID.equals(field.key))
+            return getString(R.string.title_value_android_id_default);
+        return getString(R.string.title_value_none);
+    }
+
+    // The rows, the number of own values of an app, and which rows the search and the filter of own values show
+    private void updateRows() {
+        int own = 0;
+        Map<View, Boolean> shown = new HashMap<>();
+        for (Row row : rows.values()) {
+            updateRow(row);
+            boolean isOwn = isOwn(row);
+            if (isOwn && !GLOBAL.equals(category))
+                own++;
+            String title = (row.field.title == 0 ? row.field.key : getString(row.field.title));
+            boolean visible = (!ownOnly || isOwn) &&
+                    (query.isEmpty() || title.toLowerCase(Locale.ROOT).contains(query) ||
+                            row.field.key.toLowerCase(Locale.ROOT).contains(query));
+            row.view.setVisibility(visible ? View.VISIBLE : View.GONE);
+            if (row.section != null && visible)
+                shown.put(row.section, true);
+        }
+        boolean any = false;
+        for (Map.Entry<View, Chip> entry : sectionChips.entrySet()) {
+            boolean visible = shown.containsKey(entry.getKey());
+            entry.getKey().setVisibility(visible ? View.VISIBLE : View.GONE);
+            entry.getValue().setVisibility(visible ? View.VISIBLE : View.GONE);
+            any |= visible;
+        }
+        boolean loaded = !rows.isEmpty();
+        findViewById(R.id.tvNoMatches).setVisibility(loaded && !any ? View.VISIBLE : View.GONE);
+        findViewById(R.id.hsvChips).setVisibility(loaded ? View.VISIBLE : View.GONE);
+        findViewById(R.id.vChipsDivider).setVisibility(loaded ? View.VISIBLE : View.GONE);
+        ((Chip) findViewById(R.id.chipOwn)).setText(getString(R.string.title_own_count, own));
+    }
+
+    // Scrolls to the section of a chip; the chip shows it at once, the section on top is followed again after
+    private void jumpTo(View section) {
+        NestedScrollView svValues = findViewById(R.id.svValues);
+        View content = findViewById(R.id.llValues);
+        int max = Math.max(0, svValues.getChildAt(0).getHeight() - svValues.getHeight());
+        jumpY = Math.min(max, content.getTop() + section.getTop());
+        checkChip(sectionChips.get(section));
+        svValues.smoothScrollTo(0, jumpY);
+        // A scroll which is stopped before it gets there, like by a touch, ends the jump too
+        svValues.postDelayed(() -> jumpY = -1, 800);
+    }
+
+    // The chip of the last section which starts above the middle of the top half of the list
+    private void followSection() {
+        NestedScrollView svValues = findViewById(R.id.svValues);
+        View content = findViewById(R.id.llValues);
+        int y = svValues.getScrollY() + svValues.getHeight() / 4;
+        Chip current = null;
+        for (Map.Entry<View, Chip> entry : sectionChips.entrySet())
+            if (entry.getKey().getVisibility() == View.VISIBLE &&
+                    (current == null || content.getTop() + entry.getKey().getTop() <= y))
+                current = entry.getValue();
+        checkChip(current);
+    }
+
+    private void checkChip(Chip chip) {
+        if (chip == null || chip.isChecked())
+            return;
+        ((ChipGroup) findViewById(R.id.cgSections)).check(chip.getId());
+        // The chip is shown, also when the row of chips is scrolled
+        HorizontalScrollView hsv = findViewById(R.id.hsvChips);
+        int left = ((View) chip.getParent()).getLeft() + chip.getLeft();
+        if (left < hsv.getScrollX() || left + chip.getWidth() > hsv.getScrollX() + hsv.getWidth())
+            hsv.smoothScrollTo(Math.max(0, left - hsv.getPaddingStart()), 0);
     }
 
     // Under each value: the group which reads it and whether it restricts the app, with the action to restrict it,
@@ -480,26 +831,34 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         for (View view : hints) {
             final String group = (String) view.getTag();
             String title = Groups.getTitle(this, group);
-            TextView tvHint = view.findViewById(R.id.tvHint);
-            Button btnRestrict = view.findViewById(R.id.btnRestrict);
+            Chip chip = (Chip) view;
             int color;
+            String described;
+            boolean action = false;
             if (global) {
                 int apps = restricting.getOrDefault(group, 0);
-                tvHint.setText(apps == 0
+                chip.setText(apps == 0 ? title
+                        : getResources().getQuantityString(R.plurals.title_reader_apps, apps, title, apps));
+                described = (apps == 0
                         ? getString(R.string.title_hint_no_apps, title)
                         : getResources().getQuantityString(R.plurals.title_hint_apps, apps, title, apps));
                 color = (apps == 0 ? R.attr.colorWarning : R.attr.colorSuccess);
-                btnRestrict.setVisibility(View.GONE);
             } else {
                 boolean on = restricted.contains(group);
-                tvHint.setText(getString(on ? R.string.title_hint_restricted : R.string.title_hint_unrestricted, title));
+                action = (!on && app != null);
+                chip.setText(action ? getString(R.string.title_reader_restrict, title) : title);
+                described = getString(on ? R.string.title_hint_restricted : R.string.title_hint_unrestricted, title);
+                // Screen readers tell which group a tap restricts
+                if (action)
+                    described = getString(R.string.title_described, described,
+                            getString(R.string.title_described, getString(R.string.title_restrict), title));
                 color = (on ? R.attr.colorSuccess : R.attr.colorWarning);
-                btnRestrict.setVisibility(on || app == null ? View.GONE : View.VISIBLE);
-                // Screen readers tell which group the button restricts
-                btnRestrict.setContentDescription(getString(R.string.title_described, getString(R.string.title_restrict), title));
-                btnRestrict.setOnClickListener(v -> restrict(group));
             }
-            view.findViewById(R.id.vDot).setBackgroundTintList(Ui.tint(this, color));
+            chip.setContentDescription(described);
+            chip.setChipIconTint(Ui.tint(this, color));
+            chip.setClickable(action);
+            chip.setFocusable(action);
+            chip.setOnClickListener(action ? v -> restrict(group) : null);
         }
     }
 
@@ -566,6 +925,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 til.setHelperText(needs.equals(type)
                         ? getFallbackHint(field)
                         : getString(R.string.title_value_used_with, titles[Arrays.asList(LOCATION_VALUES).indexOf(needs)]));
+                // A value which the location type does not use is dimmed
+                Row row = rows.get(field.key);
+                if (row != null)
+                    row.view.findViewById(R.id.llHead).setAlpha(needs.equals(type) ? 1f : 0.6f);
             }
     }
 
@@ -681,6 +1044,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         mode.tvBox.setText(text);
         mode.tvBoxValue.setText(value);
         mode.tvBoxValue.setVisibility(value == null ? View.GONE : View.VISIBLE);
+        updateRow(rows.get(key));
     }
 
     // The bar of the changes, while there are some, with how many values changed

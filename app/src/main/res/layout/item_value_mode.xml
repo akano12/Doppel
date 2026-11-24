@@ -25,32 +25,17 @@
 
         <Button
             android:id="@+id/btnInherit"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            style="@style/XLua.Segment"
             android:text="@string/title_mode_inherit" />
 
         <Button
             android:id="@+id/btnFixed"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            style="@style/XLua.Segment"
             android:text="@string/title_mode_fixed" />
 
         <Button
             android:id="@+id/btnBoot"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            style="@style/XLua.Segment"
             android:text="@string/title_mode_boot" />
     </com.google.android.material.button.MaterialButtonToggleGroup>
 

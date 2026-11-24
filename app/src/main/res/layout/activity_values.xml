@@ -1,21 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fake values, see ActivityValues: the sections as chips which stay on top, the values as rows which open to
+     edit them, and the bar of the changes -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
+    <!-- The search takes the place of the title, see TitleSearch -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize" />
+        android:layout_height="?attr/actionBarSize">
+
+        <ImageButton
+            android:id="@+id/ibSearch"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="end"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_search"
+            android:src="@drawable/ic_search" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilSearch"
+            style="@style/XLua.Search"
+            android:visibility="gone">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etSearch"
+                style="@style/XLua.Search.Edit"
+                android:hint="@string/title_search_values" />
+        </com.google.android.material.textfield.TextInputLayout>
+    </com.google.android.material.appbar.MaterialToolbar>
+
+    <!-- The values of the app only, and the sections, which scroll to their values -->
+    <HorizontalScrollView
+        android:id="@+id/hsvChips"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipOwn"
+                style="@style/XLua.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:checkable="true"
+                android:saveEnabled="false"
+                android:visibility="gone"
+                app:chipIcon="@drawable/ic_filter"
+                app:chipIconSize="16dp"
+                app:chipIconVisible="true" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/cgSections"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleLine="true"
+                app:singleSelection="true" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <View
+        android:id="@+id/vChipsDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/colorSurfaceContainerHigh"
+        android:visibility="gone" />
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- The toolbar names the scope while the chips and the hint are scrolled away, see ToolbarSummary -->
         <androidx.core.widget.NestedScrollView
             android:id="@+id/svValues"
             android:layout_width="match_parent"
@@ -29,44 +98,12 @@
                 android:paddingEnd="16dp"
                 android:paddingBottom="24dp">
 
-                <!-- Values of an app replace the values for all apps; checked from the saved scope in onCreate -->
-                <HorizontalScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:scrollbars="none">
-
-                    <com.google.android.material.chip.ChipGroup
-                        android:id="@+id/cgScope"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:visibility="gone"
-                        app:selectionRequired="true"
-                        app:singleLine="true"
-                        app:singleSelection="true">
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipScopeApp"
-                            style="@style/XLua.Chip.Filter"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:saveEnabled="false" />
-
-                        <com.google.android.material.chip.Chip
-                            android:id="@+id/chipScopeGlobal"
-                            style="@style/XLua.Chip.Filter"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:saveEnabled="false"
-                            android:text="@string/title_all_apps" />
-                    </com.google.android.material.chip.ChipGroup>
-                </HorizontalScrollView>
-
                 <TextView
                     android:id="@+id/tvHint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="12dp"
                     android:textAppearance="@style/XLua.Text.Meta" />
 
                 <LinearLayout
@@ -74,6 +111,16 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/tvNoMatches"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:gravity="center"
+                    android:text="@string/title_no_matches"
+                    android:textAppearance="@style/XLua.Text.Meta"
+                    android:visibility="gone" />
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
@@ -82,7 +129,6 @@
             style="@style/XLua.Loading" />
     </FrameLayout>
 
-    <!-- The changes not saved yet, with their actions, only while there are some -->
     <LinearLayout
         android:id="@+id/bar"
         android:layout_width="match_parent"

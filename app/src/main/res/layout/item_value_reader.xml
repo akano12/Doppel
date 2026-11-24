@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A group which reads a fake value, with a dot of whether it restricts, see ActivityValues.bindHints -->
+<com.google.android.material.chip.Chip xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.Material3.Chip.Assist"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:textAppearance="?attr/textAppearanceLabelMedium"
+    app:chipBackgroundColor="?attr/colorSurfaceContainerHighest"
+    app:chipStrokeWidth="0dp"
+    app:chipIcon="@drawable/bg_circle"
+    app:chipIconSize="8dp"
+    app:chipIconVisible="true"
+    app:chipMinHeight="32dp"
+    app:iconStartPadding="8dp" />

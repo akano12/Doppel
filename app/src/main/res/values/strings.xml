@@ -558,7 +558,6 @@
     <!-- Fake values -->
     <string name="title_all_apps">All apps</string>
     <string name="title_values_global_hint">Used by restricted apps without their own values. Changes apply when an app starts.</string>
-    <string name="title_values_app_hint">Values for %1$s replace the values for all apps. Empty fields use the values for all apps.</string>
     <string name="title_randomize_field">Randomize %1$s</string>
     <string name="title_mode_inherit">All apps</string>
     <string name="title_mode_fixed">Fixed</string>
@@ -583,6 +582,23 @@
     </plurals>
     <string name="title_hint_no_apps">%1$s · restricted for no app</string>
     <string name="title_restrict">Restrict</string>
+    <!-- Fake values: sections, the state of a value in its row, the chips and the switch of an app's own value -->
+    <string name="section_region">Region</string>
+    <string name="section_device">Device</string>
+    <string name="title_tag_default">default</string>
+    <string name="title_tag_all_apps">all apps</string>
+    <string name="title_value_none">none</string>
+    <string name="title_value_not_set">not set</string>
+    <string name="title_own_count">Own · %1$d</string>
+    <string name="title_own_filter">Only the values of this app</string>
+    <string name="title_own_value">Own value for %1$s</string>
+    <string name="title_values_app_switch_hint">Switch a value on to give %1$s its own. Off, it gets the value for all apps.</string>
+    <string name="title_search_values">Value or setting</string>
+    <string name="title_reader_restrict">%1$s · Restrict</string>
+    <plurals name="title_reader_apps">
+        <item quantity="one">%1$s · %2$d app</item>
+        <item quantity="other">%1$s · %2$d apps</item>
+    </plurals>
     <!-- Groups sheet: the sections fold, each with a switch for all of its groups -->
     <string name="title_groups_of">Groups of</string>
     <string name="title_fraction">%1$d/%2$d</string>

@@ -328,6 +328,49 @@
         <item name="boxCornerRadiusTopStart">12dp</item>
     </style>
 
+    <!-- A fake value in its open row, see ActivityValues: filled, without an outline -->
+    <style name="XLua.Field.Value" parent="Widget.Material3.TextInputLayout.FilledBox.Dense">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="boxBackgroundColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="boxStrokeWidth">0dp</item>
+        <item name="boxStrokeWidthFocused">0dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="hintEnabled">false</item>
+    </style>
+
+    <style name="XLua.Field.Value.Dropdown" parent="Widget.Material3.TextInputLayout.FilledBox.Dense.ExposedDropdownMenu">
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="boxBackgroundColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="boxStrokeWidth">0dp</item>
+        <item name="boxStrokeWidthFocused">0dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="hintEnabled">false</item>
+    </style>
+
+    <!-- A choice of a segmented control without an outline, the chosen one tinted, see item_value_mode -->
+    <style name="XLua.Segment" parent="Widget.Material3.Button">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="backgroundTint">@color/segment_background</item>
+        <item name="android:textColor">@color/segment_text</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="elevation">0dp</item>
+    </style>
+
     <style name="XLua.Field.Dropdown" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">10dp</item>
@@ -344,6 +387,15 @@
         <item name="android:minHeight">48dp</item>
         <!-- Autofill services must not offer or save fake identifiers -->
         <item name="android:importantForAutofill">no</item>
+    </style>
+
+    <!-- The text of a fake value, in the middle of its field, which has no label of its own: the row has the title -->
+    <style name="XLua.Field.Value.Edit" parent="XLua.Field.Edit">
+        <item name="android:minHeight">52dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:gravity">center_vertical|start</item>
     </style>
 
     <!-- Warning above content, like changes which require a restart -->

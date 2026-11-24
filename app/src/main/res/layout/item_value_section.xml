@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A section of fake values: its title and a card with a row per value, see ActivityValues -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -16,9 +17,8 @@
             android:id="@+id/llRows"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:divider="@drawable/divider"
             android:orientation="vertical"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:paddingBottom="14dp" />
+            android:showDividers="middle" />
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>
