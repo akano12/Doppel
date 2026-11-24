@@ -248,6 +248,6 @@ abstract class AdapterSections<T> extends RecyclerView.Adapter<RecyclerView.View
         h.ivExpand.setRotation(group.expanded ? 180 : 0);
         h.ivExpand.setImageTintList(Ui.tint(context, group.expanded
                 ? androidx.appcompat.R.attr.colorPrimary : com.google.android.material.R.attr.colorOutline));
-        h.itemView.setContentDescription(group.text + ", " + group.meta + ", " + group.description);
+        h.itemView.setContentDescription(h.itemView.getContext().getString(R.string.title_described3, group.text, group.meta, group.description));
     }
 }

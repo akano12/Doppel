@@ -35,6 +35,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.TooltipCompat;
 import androidx.core.os.BundleCompat;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
@@ -96,6 +97,8 @@ public class NavBar extends LinearLayout {
         item.setPadding(padding, 0, padding, 0);
         item.setBackgroundResource(R.drawable.bg_nav_item);
         item.setContentDescription(menuItem.getTitle());
+        // The name of a tab without its label, on a long press
+        TooltipCompat.setTooltipText(item, menuItem.getTitle());
         item.setOnClickListener(view -> select(view.getId(), true));
         // A tab for screen readers, which tell its position, like "tab 2 of 4", with the selection
         ViewCompat.setAccessibilityDelegate(item, new AccessibilityDelegateCompat() {

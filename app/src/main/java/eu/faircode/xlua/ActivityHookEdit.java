@@ -191,6 +191,8 @@ public class ActivityHookEdit extends ActivityBase {
             TextInputLayout til = findViewById(id);
             Ui.onTextChanged(til.getEditText(), text -> til.setError(null));
         }
+        for (EditText et : new EditText[]{etCollection, etGroup, etName, etAuthor, etClass, etScript})
+            Ui.onTextChanged(et, text -> invalid(et, false, 0));
 
         final View svDefinition = findViewById(R.id.svDefinition);
         final View llScript = findViewById(R.id.llScript);
@@ -386,13 +388,47 @@ public class ActivityHookEdit extends ActivityBase {
         if (max >= min)
             return false;
         TextInputLayout til = findViewById(tilId);
-        til.setError(getString(R.string.msg_invalid, String.valueOf(max)));
+        til.setError(getString(R.string.msg_invalid_max, String.valueOf(min)));
         til.getEditText().requestFocus();
         return true;
     }
 
+    // Shows the error at the field, which takes the focus, and so scrolls into view; false when it is fine
+    private boolean invalid(EditText et, boolean bad, int message) {
+        View parent = (View) et.getParent();
+        while (parent != null && !(parent instanceof TextInputLayout) && parent.getParent() instanceof View)
+            parent = (View) parent.getParent();
+        String error = (bad ? getString(message) : null);
+        // The script has no layout around it, and is on its own tab
+        if (parent instanceof TextInputLayout)
+            ((TextInputLayout) parent).setError(error);
+        else
+            et.setError(error);
+        if (bad) {
+            if (et == etScript)
+                tabs.selectTab(tabs.getTabAt(1));
+            et.requestFocus();
+        }
+        return bad;
+    }
+
+    // The fields which every definition needs, before the definition is built, and in the order they are shown
+    private boolean requiredMissing() {
+        String collection = text(etCollection);
+        return invalid(etCollection, collection.isEmpty(), R.string.msg_required) ||
+                invalid(etCollection, collection.indexOf(',') >= 0 || !etCollection.getText().toString().equals(collection),
+                        R.string.msg_collection_invalid) ||
+                invalid(etGroup, text(etGroup).isEmpty(), R.string.msg_required) ||
+                invalid(etName, text(etName).isEmpty(), R.string.msg_required) ||
+                invalid(etAuthor, text(etAuthor).isEmpty(), R.string.msg_required) ||
+                invalid(etClass, text(etClass).isEmpty(), R.string.msg_required) ||
+                invalid(etScript, etScript.getText().toString().isEmpty(), R.string.msg_required);
+    }
+
     // The definition as entered, null with an error shown at a field
     private JSONObject getDefinition() throws JSONException {
+        if (requiredMissing())
+            return null;
         Integer version = number(R.id.tilVersion, 0);
         Integer minSdk = number(R.id.tilMinSdk, 1);
         Integer maxSdk = number(R.id.tilMaxSdk, 999);

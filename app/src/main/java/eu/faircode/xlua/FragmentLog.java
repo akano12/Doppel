@@ -34,6 +34,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -161,6 +162,19 @@ public class FragmentLog extends FragmentBase {
         tvCallsLabel = view.findViewById(R.id.tvCallsLabel);
         tvStats = view.findViewById(R.id.tvStats);
         vBars = view.findViewById(R.id.vBars);
+        if (!getResources().getBoolean(R.bool.show_overview))
+            view.findViewById(R.id.cvOverview).setVisibility(View.GONE);
+        // The label and the counts do not fit next to the number at a large font, so they go below it
+        if (getResources().getConfiguration().fontScale > 1.3f) {
+            ((LinearLayout) view.findViewById(R.id.llCalls)).setOrientation(LinearLayout.VERTICAL);
+            for (View v : new View[]{tvCallsLabel, tvStats}) {
+                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+                lp.weight = 0;
+                lp.setMarginStart(0);
+                v.setLayoutParams(lp);
+            }
+        }
         llAxis = view.findViewById(R.id.llAxis);
         TextView tvTitle = view.findViewById(R.id.tvTitle);
         View tilSearch = view.findViewById(R.id.tilSearch);

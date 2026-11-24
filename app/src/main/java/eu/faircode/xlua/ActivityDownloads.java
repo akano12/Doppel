@@ -663,9 +663,9 @@ public class ActivityDownloads extends ActivityBase {
             h.btnInstall.setVisibility(state == State.AVAILABLE ? View.VISIBLE : View.GONE);
             h.btnUpdate.setVisibility(state == State.UPDATE ? View.VISIBLE : View.GONE);
             // Screen readers tell which definition the buttons are for
-            h.btnRemove.setContentDescription(h.btnRemove.getText() + ", " + entry.name);
-            h.btnInstall.setContentDescription(h.btnInstall.getText() + ", " + entry.name);
-            h.btnUpdate.setContentDescription(h.btnUpdate.getText() + ", " + entry.name);
+            h.btnRemove.setContentDescription(getString(R.string.title_described, h.btnRemove.getText(), entry.name));
+            h.btnInstall.setContentDescription(getString(R.string.title_described, h.btnInstall.getText(), entry.name));
+            h.btnUpdate.setContentDescription(getString(R.string.title_described, h.btnUpdate.getText(), entry.name));
         }
     }
 }

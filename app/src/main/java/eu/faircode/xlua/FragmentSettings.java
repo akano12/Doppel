@@ -267,14 +267,16 @@ public class FragmentSettings extends FragmentBase {
                 this.enabled = enabled;
 
                 glStatus.removeAllViews();
+                // Two columns break labels like "Collections" mid-word at large font on a narrow screen
+                glStatus.setColumnCount(getResources().getConfiguration().fontScale > 1.3f ? 1 : 2);
                 // Digits of the language, like the counts of the Activity tab
                 NumberFormat nf = NumberFormat.getIntegerInstance();
                 nf.setGroupingUsed(false);
                 addStatus(R.string.title_status_service, version < 0 ? "-" : nf.format(version));
                 addStatus(R.string.title_status_hooks, nf.format(hooks.size()));
                 addStatus(R.string.title_collections, nf.format(enabled.size()));
-                addStatus(R.string.title_status_android, Build.VERSION.RELEASE + " · SDK " + Build.VERSION.SDK_INT);
-                tvCollections.setText(TextUtils.join(", ", enabled));
+                addStatus(R.string.title_status_android, getString(R.string.title_android_sdk, Build.VERSION.RELEASE, Build.VERSION.SDK_INT));
+                tvCollections.setText(TextUtils.join(getString(R.string.title_list_separator), enabled));
 
                 swRestrictNew.setOnCheckedChangeListener(null);
                 if (current)
@@ -510,13 +512,13 @@ public class FragmentSettings extends FragmentBase {
         if (r.hooksFailed > 0)
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_hooks_failed, r.hooksFailed, r.hooksFailed));
         if (!r.replaced.isEmpty())
-            lines.add(context.getString(R.string.title_restore_replaced, names(r.replaced)));
+            lines.add(context.getString(R.string.title_restore_replaced, names(context, r.replaced)));
         if (r.failed > 0)
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_failed, r.failed, r.failed));
         lines.add(context.getResources().getQuantityString(R.plurals.title_restore_apps, r.apps, r.apps, r.added));
         if (!r.missing.isEmpty())
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_missing,
-                    r.missing.size(), r.missing.size(), names(r.missing)));
+                    r.missing.size(), r.missing.size(), names(context, r.missing)));
         if (r.renamed > 0)
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_renamed, r.renamed, r.renamed));
         if (r.removed > 0)
@@ -526,9 +528,9 @@ public class FragmentSettings extends FragmentBase {
         if (r.partial > 0)
             lines.add(context.getResources().getQuantityString(R.plurals.title_restore_partial, r.partial, r.partial));
         if (!r.stopped.isEmpty())
-            lines.add(context.getString(R.string.title_restore_stopped, names(r.stopped)));
+            lines.add(context.getString(R.string.title_restore_stopped, names(context, r.stopped)));
         if (!r.reboot.isEmpty())
-            lines.add(context.getString(R.string.title_restore_reboot, names(r.reboot)));
+            lines.add(context.getString(R.string.title_restore_reboot, names(context, r.reboot)));
 
         return new MaterialAlertDialogBuilder(context)
                 .setTitle(R.string.title_restore_done)
@@ -538,10 +540,11 @@ public class FragmentSettings extends FragmentBase {
     }
 
     // At most a few names, which can be many, like the apps of another device
-    private static String names(List<String> names) {
+    private static String names(Context context, List<String> names) {
         final int max = 5;
-        String shown = TextUtils.join(", ", names.subList(0, Math.min(max, names.size())));
-        return (names.size() > max ? shown + ", …" : shown);
+        String separator = context.getString(R.string.title_list_separator);
+        String shown = TextUtils.join(separator, names.subList(0, Math.min(max, names.size())));
+        return (names.size() > max ? shown + separator + "…" : shown);
     }
 
     // Restrictions and settings of the current user; custom definitions are kept

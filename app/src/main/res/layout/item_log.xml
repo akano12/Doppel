@@ -79,7 +79,7 @@
                 android:textAppearance="?attr/textAppearanceBodyMedium" />
 
             <!-- The value before and after, when the hook changed one, and the hook -->
-            <LinearLayout
+            <eu.faircode.xlua.ValueLine
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
@@ -93,7 +93,6 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:maxWidth="120dp"
                     android:textAppearance="@style/XLua.Text.Mono"
                     android:visibility="gone"
                     tools:text="310260"
@@ -120,7 +119,6 @@
                     android:backgroundTint="?attr/colorSecondaryContainer"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:maxWidth="120dp"
                     android:paddingStart="7dp"
                     android:paddingEnd="7dp"
                     android:textAppearance="@style/XLua.Text.Mono"
@@ -155,7 +153,7 @@
                     app:tint="?attr/colorOnSecondaryContainer"
                     tools:ignore="ContentDescription"
                     tools:visibility="visible" />
-            </LinearLayout>
+            </eu.faircode.xlua.ValueLine>
 
             <!-- The values in full, wrapped -->
             <LinearLayout

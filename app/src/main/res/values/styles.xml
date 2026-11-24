@@ -15,10 +15,16 @@
         <item name="postSplashScreenTheme">@style/Theme.XLua</item>
     </style>
 
+    <style name="XLua.Overflow" parent="Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:minWidth">48dp</item>
+    </style>
+
     <!-- Light and dark follow the theme setting, see ApplicationEx -->
     <style name="Theme.XLua" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Edge-to-edge is enabled by ActivityBase -->
         <item name="android:windowDisablePreview">true</item>
+        <!-- The overflow button of toolbars is 40dp wide by default -->
+        <item name="actionOverflowButtonStyle">@style/XLua.Overflow</item>
 
         <item name="colorPrimary">@color/c_primary</item>
         <item name="colorOnPrimary">@color/c_on_primary</item>
@@ -150,6 +156,8 @@
     <!-- Screen title of the top level screens -->
     <style name="XLua.Text.ScreenTitle" parent="XLua.TextAppearance.HeadlineMedium">
         <item name="android:textColor">?attr/colorOnSurface</item>
+        <!-- At the start edge also when the title is of another direction than the layout -->
+        <item name="android:textAlignment">viewStart</item>
     </style>
 
     <!-- Uppercase caption above a group of rows -->
@@ -219,8 +227,11 @@
     <!-- Count at the end of a row, like 29/29; the colors are set from code -->
     <style name="XLua.Pill" parent="">
         <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">26dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">26dp</item>
         <item name="android:gravity">center</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
         <item name="android:paddingStart">10dp</item>
         <item name="android:paddingEnd">10dp</item>
         <item name="android:textSize">12sp</item>
@@ -318,6 +329,9 @@
         <item name="android:imeOptions">actionSearch</item>
         <item name="android:inputType">text</item>
         <item name="android:maxLines">1</item>
+        <item name="android:minHeight">48dp</item>
+        <!-- Autofill services must not offer or save fake identifiers -->
+        <item name="android:importantForAutofill">no</item>
     </style>
 
     <!-- Progress indicator in the middle of a list which loads -->
@@ -326,6 +340,9 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_gravity">center</item>
         <item name="android:indeterminate">true</item>
+        <!-- Screen readers tell when a list starts to load -->
+        <item name="android:contentDescription">@string/title_loading</item>
+        <item name="android:accessibilityLiveRegion">polite</item>
     </style>
 
     <!-- Why a list is empty, in the middle of it, shown by the screen -->
@@ -360,6 +377,9 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
+        <item name="android:minHeight">48dp</item>
+        <!-- Autofill services must not offer or save fake identifiers -->
+        <item name="android:importantForAutofill">no</item>
     </style>
 
     <!-- Warning above content, like changes which require a restart -->

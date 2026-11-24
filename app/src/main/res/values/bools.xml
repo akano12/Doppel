@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The overview cards of the Apps and Activity tabs; in landscape they would fill the screen above the list -->
+    <bool name="show_overview">true</bool>
+</resources>

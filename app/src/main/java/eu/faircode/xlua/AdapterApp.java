@@ -849,8 +849,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         else
             h.ivExpand.setRotation(rotation);
         h.itemView.setTag(header.section);
-        h.itemView.setContentDescription(h.tvHeader.getText() + ", " +
-                context.getString(header.expanded ? R.string.title_collapse : R.string.title_expand));
+        h.itemView.setContentDescription(context.getString(R.string.title_described, h.tvHeader.getText(),
+                context.getString(header.expanded ? R.string.title_collapse : R.string.title_expand)));
     }
 
     private void bindApp(AppHolder h, Item item) {
@@ -900,8 +900,8 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // What the app is, like system; whether changes are waiting for a restart is shown on the screen of the app
         if (app.persistent)
             Ui.addBadge(h.llBadges, context.getString(R.string.badge_persistent), Ui.Badge.NEUTRAL)
-                    .setContentDescription(context.getString(R.string.badge_persistent) + ", " +
-                            context.getString(R.string.title_apply_reboot));
+                    .setContentDescription(context.getString(R.string.title_described,
+                            context.getString(R.string.badge_persistent), context.getString(R.string.title_apply_reboot)));
         // Both badges would leave little room for the name, and persistent apps are system apps
         if (app.system && !app.persistent)
             Ui.addBadge(h.llBadges, context.getString(R.string.title_filter_system), Ui.Badge.NEUTRAL);
@@ -919,7 +919,7 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 h.btnAction.setVisibility(View.VISIBLE);
                 h.btnAction.setText(row.canRestrictAll() ? R.string.title_restrict_all_groups : R.string.title_review);
                 // Screen readers tell which app the button is for
-                h.btnAction.setContentDescription(h.btnAction.getText() + ", " + h.tvLabel.getText());
+                h.btnAction.setContentDescription(context.getString(R.string.title_described, h.btnAction.getText(), h.tvLabel.getText()));
                 break;
 
             case RECENT:
@@ -969,6 +969,6 @@ public class AdapterApp extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         tv.setVisibility(View.VISIBLE);
         // Tapping the badge shows the actions behind the row
         fl.setVisibility(View.VISIBLE);
-        fl.setContentDescription(tv.getContentDescription() + ", " + context.getString(R.string.title_show_actions));
+        fl.setContentDescription(context.getString(R.string.title_described, tv.getContentDescription(), context.getString(R.string.title_show_actions)));
     }
 }

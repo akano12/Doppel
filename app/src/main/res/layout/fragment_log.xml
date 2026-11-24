@@ -101,7 +101,9 @@
                         android:paddingEnd="16dp"
                         android:paddingBottom="10dp">
 
+                        <!-- The label and the counts go below the number at a large font, see FragmentLog -->
                         <LinearLayout
+                            android:id="@+id/llCalls"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:gravity="bottom"
@@ -111,6 +113,7 @@
                                 android:id="@+id/tvCalls"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:includeFontPadding="true"
                                 android:textAppearance="?attr/textAppearanceHeadlineMedium"
                                 android:textColor="?attr/colorOnSurface"
                                 tools:text="44" />
@@ -123,7 +126,7 @@
                                 android:layout_marginBottom="5dp"
                                 android:layout_weight="1"
                                 android:ellipsize="end"
-                                android:maxLines="2"
+                                android:maxLines="3"
                                 android:textAppearance="?attr/textAppearanceTitleMedium"
                                 tools:text="hooks restricted today" />
 

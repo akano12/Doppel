@@ -496,7 +496,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 color = (on ? R.attr.colorSuccess : R.attr.colorWarning);
                 btnRestrict.setVisibility(on || app == null ? View.GONE : View.VISIBLE);
                 // Screen readers tell which group the button restricts
-                btnRestrict.setContentDescription(getString(R.string.title_restrict) + ", " + title);
+                btnRestrict.setContentDescription(getString(R.string.title_described, getString(R.string.title_restrict), title));
                 btnRestrict.setOnClickListener(v -> restrict(group));
             }
             view.findViewById(R.id.vDot).setBackgroundTintList(Ui.tint(this, color));

@@ -415,7 +415,7 @@ public class ActivityApp extends ActivityBase {
                     bind(group);
                 });
                 // Screen readers tell which group failed
-                gv.ibError.setContentDescription(getString(R.string.title_show_error) + ", " + title);
+                gv.ibError.setContentDescription(getString(R.string.title_described, getString(R.string.title_show_error), title));
                 gv.ibError.setOnClickListener(view -> showErrors(group));
                 views.put(group, gv);
                 llRows.addView(vGroup);

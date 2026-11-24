@@ -41,7 +41,7 @@
     <string name="title_values_global">Fake values for all apps</string>
     <string name="title_values_identifiers">Identifiers</string>
     <string name="title_values_location">Location</string>
-    <string name="title_values_custom">Custom definitions</string>
+    <string name="title_values_custom">Custom hooks</string>
     <string name="title_value_serial">Serial number</string>
     <string name="title_value_android_id">Android ID</string>
     <string name="title_value_android_id_default">one for each app developer, which stays the same</string>
@@ -75,20 +75,23 @@
     <string name="msg_saved_restart">Saved, restart apps to apply</string>
     <string name="msg_saved_reboot">Saved, restart the device to apply</string>
     <string name="msg_invalid">Invalid value: %1$s</string>
+    <string name="msg_invalid_max">Must not be below the minimum (%1$s)</string>
+    <string name="msg_required">Required</string>
+    <string name="msg_collection_invalid">No commas, and no spaces around the name</string>
 
-    <!-- Hook definitions -->
+    <!-- Hooks -->
     <string name="title_hook_builtin">Built-in</string>
     <string name="title_hook_custom">Custom</string>
     <string name="title_hook_overridden">Custom (replaces built-in)</string>
     <string name="title_hook_disabled">Disabled</string>
-    <string name="title_hook_edit_builtin">Saving a built-in definition creates a custom copy. Deleting the copy restores the built-in definition.</string>
+    <string name="title_hook_edit_builtin">Saving a built-in hook creates a custom copy. Deleting the copy restores the built-in hook.</string>
     <string name="msg_hook_saved">Saved, restart restricted apps to apply</string>
     <string name="msg_hook_saved_as">Saved as %1$s, %2$s stays as it was</string>
     <string name="msg_hook_replaces">%1$s exists already. Saving replaces it, with its script.</string>
     <string name="msg_delete_sure">Delete \'%1$s\'?</string>
 
     <!-- Backup, errors and notifications -->
-    <string name="msg_backup_done">Backup saved · settings: %1$d · custom definitions: %2$d · apps: %3$d</string>
+    <string name="msg_backup_done">Backup saved · settings: %1$d · custom hooks: %2$d · apps: %3$d</string>
     <!-- The summary of a restore, one line each, the lines without anything to say are left out, see FragmentSettings -->
     <string name="title_restore_done">Backup restored</string>
     <string name="title_restore_version">Made with build %1$d, this is build %2$d</string>
@@ -105,12 +108,12 @@
         <item quantity="other">%1$d settings</item>
     </plurals>
     <plurals name="title_restore_hooks">
-        <item quantity="one">%1$d custom definition</item>
-        <item quantity="other">%1$d custom definitions</item>
+        <item quantity="one">%1$d custom hook</item>
+        <item quantity="other">%1$d custom hooks</item>
     </plurals>
     <plurals name="title_restore_hooks_failed">
-        <item quantity="one">%1$d custom definition this version cannot read, left out</item>
-        <item quantity="other">%1$d custom definitions this version cannot read, left out</item>
+        <item quantity="one">%1$d custom hook this version cannot read, left out</item>
+        <item quantity="other">%1$d custom hooks this version cannot read, left out</item>
     </plurals>
     <plurals name="title_restore_failed">
         <item quantity="one">%1$d setting or app which cannot be read, left out</item>
@@ -125,26 +128,26 @@
         <item quantity="other">%1$d apps not installed, left out: %2$s</item>
     </plurals>
     <plurals name="title_restore_renamed">
-        <item quantity="one">%1$d restriction of a renamed definition, taken over</item>
-        <item quantity="other">%1$d restrictions of renamed definitions, taken over</item>
+        <item quantity="one">%1$d restriction of a renamed hook, taken over</item>
+        <item quantity="other">%1$d restrictions of renamed hooks, taken over</item>
     </plurals>
     <plurals name="title_restore_removed">
-        <item quantity="one">%1$d restriction of a definition which does not exist anymore, left out</item>
-        <item quantity="other">%1$d restrictions of definitions which do not exist anymore, left out</item>
+        <item quantity="one">%1$d restriction of a hook which does not exist anymore, left out</item>
+        <item quantity="other">%1$d restrictions of hooks which do not exist anymore, left out</item>
     </plurals>
     <plurals name="title_restore_completed">
-        <item quantity="one">%1$d restriction of a definition added, moved or applying to more apps since the backup, for the groups it restricted</item>
-        <item quantity="other">%1$d restrictions of definitions added, moved or applying to more apps since the backup, for the groups it restricted</item>
+        <item quantity="one">%1$d restriction of a hook added, moved or applying to more apps since the backup, for the groups it restricted</item>
+        <item quantity="other">%1$d restrictions of hooks added, moved or applying to more apps since the backup, for the groups it restricted</item>
     </plurals>
     <plurals name="title_restore_partial">
-        <item quantity="one">%1$d group partially restricted: the backup does not tell which definitions were added since, see the screens of the apps</item>
-        <item quantity="other">%1$d groups partially restricted: the backup does not tell which definitions were added since, see the screens of the apps</item>
+        <item quantity="one">%1$d group partially restricted: the backup does not tell which hooks were added since, see the screens of the apps</item>
+        <item quantity="other">%1$d groups partially restricted: the backup does not tell which hooks were added since, see the screens of the apps</item>
     </plurals>
     <string name="title_restore_stopped">Stopped to apply the restrictions: %1$s</string>
     <string name="title_restore_reboot">Restart the device to apply the restrictions of: %1$s</string>
-    <string name="msg_restore_sure">Restore settings, custom definitions and restrictions from this backup? Existing values with the same names are replaced.</string>
-    <string name="msg_restore_scripts">These definitions come with scripts, which run inside the apps they restrict, with the rights of those apps; restricting Android itself runs them inside system server, with the rights of the system. Restore only backups you trust.%1$s</string>
-    <string name="msg_restore_android">This backup restricts Android itself. The scripts of the definitions which restrict it run inside system server, with the rights of the system, and can read all data of the device, or cause a bootloop. Restore only backups you trust.</string>
+    <string name="msg_restore_sure">Restore settings, custom hooks and restrictions from this backup? Existing values with the same names are replaced.</string>
+    <string name="msg_restore_scripts">These hooks come with scripts, which run inside the apps they restrict, with the rights of those apps; restricting Android itself runs them inside system server, with the rights of the system. Restore only backups you trust.%1$s</string>
+    <string name="msg_restore_android">This backup restricts Android itself. The scripts of the hooks which restrict it run inside system server, with the rights of the system, and can read all data of the device, or cause a bootloop. Restore only backups you trust.</string>
     <string name="msg_error">Error: %1$s</string>
     <string name="msg_error_unknown">Something went wrong. The log of the app has the details.</string>
 
@@ -165,6 +168,7 @@
     <string name="nav_hooks">Hooks</string>
     <string name="nav_settings">Settings</string>
     <string name="title_back">Back</string>
+    <string name="title_loading">Loading</string>
     <string name="title_more">More options</string>
     <string name="title_retry">Retry</string>
     <string name="msg_no_service_help">Doppel needs an Xposed framework with the modern API (like LSPosed or Vector). Enable Doppel in it, add System Framework to its scope, then restart the device.</string>
@@ -254,6 +258,11 @@
     <string name="title_no_available_hooks">No hooks available for this app</string>
     <!-- Two parts on one line, like the group restricted last and when, or the apps and the errors of the Activity tab -->
     <string name="title_pair">%1$s · %2$s</string>
+    <!-- Screen readers: what a button or row is, and what it is for -->
+    <string name="title_described">%1$s, %2$s</string>
+    <string name="title_described3">%1$s, %2$s, %3$s</string>
+    <string name="title_list_separator">, </string>
+    <string name="title_android_sdk">%1$s · SDK %2$d</string>
     <string name="title_not_restricted">Not restricted</string>
     <string name="badge_persistent">Persistent</string>
     <string name="menu_bulk">Toggle a group for shown apps</string>
@@ -278,6 +287,7 @@
     <string name="title_restrict_all_groups">Restrict all</string>
     <string name="title_remove_all">Remove all</string>
     <string name="title_groups">Groups</string>
+    <string name="title_groups_hint">A group is a set of hooks for one kind of data, like location or contacts</string>
     <string name="title_show_actions">Show the actions</string>
     <string name="msg_removed_all">%1$s: all restrictions removed</string>
     <string name="title_done">Done</string>
@@ -332,7 +342,7 @@
     <string name="menu_launch">Open app</string>
     <string name="menu_app_info">App info</string>
     <string name="menu_view_log">View activity</string>
-    <string name="title_log">Log</string>
+    <string name="title_log">Activity</string>
     <string name="msg_stopped">Stopped %1$s</string>
     <string name="msg_app_not_found">App %1$s not found</string>
     <string name="msg_cannot_open">%1$s has no screen to open</string>
@@ -408,24 +418,24 @@
         <item quantity="other">%1$d not on this Android</item>
     </plurals>
     <string name="title_hook_unavailable">Not on this Android</string>
-    <string name="title_no_custom_hooks">No custom definitions</string>
-    <string name="msg_no_hooks_file">This file has no hook definitions</string>
-    <string name="msg_import_replaces">These definitions replace built-in definitions in all apps which have them, also in apps which use them already and in Android itself (system server, where their scripts run with the rights of the system), with their own scripts. Removing them restores the built-in ones.%1$s</string>
-    <string name="msg_import_existing">These definitions exist already. Importing replaces them, with their scripts.%1$s</string>
-    <string name="title_restore_replaced">Built-in definitions replaced by custom ones: %1$s</string>
+    <string name="title_no_custom_hooks">No custom hooks</string>
+    <string name="msg_no_hooks_file">This file has no hooks</string>
+    <string name="msg_import_replaces">These hooks replace built-in hooks in all apps which have them, also in apps which use them already and in Android itself (system server, where their scripts run with the rights of the system), with their own scripts. Removing them restores the built-in ones.%1$s</string>
+    <string name="msg_import_existing">These hooks exist already. Importing replaces them, with their scripts.%1$s</string>
+    <string name="title_restore_replaced">Built-in hooks replaced by custom ones: %1$s</string>
     <string name="msg_import_backup">This file is a backup, restore it in Settings</string>
     <!-- The quantity is the number of groups -->
     <plurals name="title_hooks_summary">
         <item quantity="one">%1$d built-in · %2$d custom · %3$d group</item>
         <item quantity="other">%1$d built-in · %2$d custom · %3$d groups</item>
     </plurals>
-    <string name="title_no_hooks">No hook definitions</string>
+    <string name="title_no_hooks">No hooks</string>
     <string name="title_hook_collection_off">%1$s off</string>
-    <string name="menu_export_custom">Export custom definitions</string>
+    <string name="menu_export_custom">Export custom hooks</string>
     <string name="menu_restore_builtin">Restore built-in</string>
     <string name="msg_builtin_restored">Restored built-in %1$s</string>
-    <string name="title_hook_new">New hook definition</string>
-    <string name="title_tab_definition">Definition</string>
+    <string name="title_hook_new">New hook</string>
+    <string name="title_tab_definition">Hook</string>
     <string name="title_tab_script">Script</string>
     <string name="title_section_target">Target</string>
     <string name="title_section_availability">Availability</string>
@@ -455,8 +465,8 @@
     <string name="title_hook_enabled_hint">Offer the hook for apps</string>
     <string name="title_hook_optional">Optional</string>
     <string name="title_hook_optional_hint">No error when the class or method does not exist</string>
-    <string name="title_hook_usage">Log usage</string>
-    <string name="title_hook_usage_hint">Record restrictions in the activity log</string>
+    <string name="title_hook_usage">Show in Activity</string>
+    <string name="title_hook_usage_hint">Record restrictions in the Activity tab</string>
     <string name="title_hook_notify">Notify</string>
     <string name="title_hook_notify_hint">Show a notification for each restriction</string>
     <string name="title_check">Check</string>
@@ -474,7 +484,7 @@
     <!-- Downloads -->
     <string name="title_downloads">Downloads</string>
     <string name="title_search_downloads">Name, group or author</string>
-    <string name="title_downloads_notice">Community definitions, as-is and at your own risk</string>
+    <string name="title_downloads_notice">Community hooks, as-is and at your own risk</string>
     <string name="title_not_installed">Not installed</string>
     <string name="title_installed">Installed</string>
     <string name="title_updates">Updates</string>
@@ -482,13 +492,13 @@
     <string name="title_update">Update</string>
     <string name="title_remove">Remove</string>
     <string name="msg_remove_sure">Remove \'%1$s\'?</string>
-    <string name="msg_remove_restores">Remove \'%1$s\'? The built-in definition it replaced is used again.</string>
+    <string name="msg_remove_restores">Remove \'%1$s\'? The built-in hook it replaced is used again.</string>
     <string name="msg_removed">Removed %1$s</string>
     <string name="title_replaces_builtin">replaces built-in</string>
     <string name="title_download_meta">%1$s · v%2$d · %3$s</string>
     <plurals name="title_definition_count">
-        <item quantity="one">%1$d definition</item>
-        <item quantity="other">%1$d definitions</item>
+        <item quantity="one">%1$d hook</item>
+        <item quantity="other">%1$d hooks</item>
     </plurals>
     <plurals name="title_installed_count">
         <item quantity="one">%1$d installed</item>
@@ -508,21 +518,21 @@
     <string name="title_update_all">Update all</string>
     <string name="msg_update_sure">Install %1$s again? Changes made to it are replaced.</string>
     <plurals name="msg_update_all">
-        <item quantity="one">Update %1$d definition?</item>
-        <item quantity="other">Update %1$d definitions?</item>
+        <item quantity="one">Update %1$d hook?</item>
+        <item quantity="other">Update %1$d hooks?</item>
     </plurals>
     <plurals name="msg_updated">
-        <item quantity="one">Updated %1$d definition</item>
-        <item quantity="other">Updated %1$d definitions</item>
+        <item quantity="one">Updated %1$d hook</item>
+        <item quantity="other">Updated %1$d hooks</item>
     </plurals>
     <string name="title_version_change">v%1$d → v%2$d</string>
     <plurals name="msg_hooks_imported">
-        <item quantity="one">Imported %1$d definition</item>
-        <item quantity="other">Imported %1$d definitions</item>
+        <item quantity="one">Imported %1$d hook</item>
+        <item quantity="other">Imported %1$d hooks</item>
     </plurals>
     <plurals name="msg_hooks_exported">
-        <item quantity="one">Exported %1$d definition</item>
-        <item quantity="other">Exported %1$d definitions</item>
+        <item quantity="one">Exported %1$d hook</item>
+        <item quantity="other">Exported %1$d hooks</item>
     </plurals>
     <string name="title_enable">Enable</string>
     <string name="msg_installed">Installed %1$s</string>
@@ -544,8 +554,8 @@
         <item quantity="other">Restricted for %1$d apps which restrict the same groups, when they start again</item>
     </plurals>
     <string name="msg_restricted_no_apps">No apps restrict the same groups</string>
-    <string name="msg_install_replaces">This definition replaces the built-in definition %1$s. Removing it restores the built-in definition.</string>
-    <string name="msg_install_overlaps">This definition hooks the same method as the hooks below. Both run for apps restricting their groups, one after the other, so one can undo or break the changes of the other:</string>
+    <string name="msg_install_replaces">This hook replaces the built-in hook %1$s. Removing it restores the built-in hook.</string>
+    <string name="msg_install_overlaps">This hook patches the same method as the hooks below. Both run for apps restricting their groups, one after the other, so one can undo or break the changes of the other:</string>
 
     <!-- Fake values -->
     <string name="title_all_apps">All apps</string>
@@ -582,7 +592,7 @@
     <string name="title_module_active">Module active</string>
     <string name="title_version">Doppel %1$s (%2$d)</string>
     <string name="title_status_service">Service</string>
-    <string name="title_status_hooks">Definitions</string>
+    <string name="title_status_hooks">Hooks</string>
     <string name="title_status_android">Android</string>
     <string name="section_new_apps">New apps</string>
     <string name="section_hooks">Hooks</string>
@@ -592,6 +602,7 @@
     <string name="title_restrict_new_hint">Restrict all groups when an app is installed. The app also needs to be in Doppel\'s LSPosed scope, see its screen.</string>
     <string name="title_notify_new_hint">Show a notification when an app is installed</string>
     <string name="title_collections">Collections</string>
+    <string name="title_collections_hint">A collection is a set of hooks, like the built-in ones; the hooks of one which is off are not offered</string>
     <string name="title_theme">Theme</string>
     <string name="title_theme_system">System</string>
     <string name="title_theme_light">Light</string>
@@ -609,10 +620,10 @@
     <string name="title_icon_echo">Mask and its echo</string>
     <string name="msg_launcher_icon">The new icon appears when you leave the app; a shortcut on the home screen needs to be added again</string>
     <string name="title_black_hint">In the dark theme, which saves power on OLED screens</string>
-    <string name="title_backup_hint">Settings, custom definitions and restrictions</string>
+    <string name="title_backup_hint">Settings, custom hooks and restrictions</string>
     <string name="title_restore_hint">From a backup file</string>
     <string name="title_clear_data">Clear restrictions and settings</string>
-    <string name="title_clear_data_hint">Custom definitions are kept</string>
+    <string name="title_clear_data_hint">Custom hooks are kept</string>
     <string name="title_working">Working, please wait</string>
     <string name="title_license_row">License</string>
     <string name="msg_clear_sure">Remove all restrictions and settings, including fake values? This cannot be undone.</string>

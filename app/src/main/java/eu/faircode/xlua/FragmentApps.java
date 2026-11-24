@@ -389,9 +389,9 @@ public class FragmentApps extends FragmentBase {
         if (summary.recent > 0)
             parts.add(getResources().getQuantityString(R.plurals.title_overview_recent, summary.recent, summary.recent));
         tvOverviewMeta.setText(parts.isEmpty() ? getString(R.string.title_overview_none) : TextUtils.join(" · ", parts));
-        cvOverview.setContentDescription(getString(R.string.title_overview) + ", " +
-                tvOverview.getText() + ", " + tvOverviewMeta.getText());
-        cvOverview.setVisibility(View.VISIBLE);
+        cvOverview.setContentDescription(getString(R.string.title_described3,
+                getString(R.string.title_overview), tvOverview.getText(), tvOverviewMeta.getText()));
+        cvOverview.setVisibility(getResources().getBoolean(R.bool.show_overview) ? View.VISIBLE : View.GONE);
 
         piCompact.setProgressCompat(percent, true);
         compact.setSubtitle(getString(R.string.title_pair,

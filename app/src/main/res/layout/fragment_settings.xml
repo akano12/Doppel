@@ -201,6 +201,10 @@
                             android:text="@string/title_collections" />
 
                         <TextView
+                            style="@style/XLua.Row.Subtitle"
+                            android:text="@string/title_collections_hint" />
+
+                        <TextView
                             android:id="@+id/tvCollections"
                             style="@style/XLua.Row.Subtitle" />
                     </LinearLayout>
