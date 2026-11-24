@@ -22,6 +22,7 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -535,6 +536,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 input.setText(value);
                 input.setHint(getPlaceholder(field));
                 til.setHelperText(getFallbackHint(field));
+                // After the value saved, which the limits would otherwise cut, see save
+                limit(field, til, input);
 
                 // A value can be cleared by itself, an empty field removes the value when saved
                 if (field.type != Type.TIMEZONE) {
@@ -1112,10 +1115,14 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             EditText input = til.getEditText();
             til.setError(null);
             String value = getValue(field, input);
-            // The field of an identifier is hidden unless it is fixed: what it keeps of before is not checked then
+            // The field of an identifier is hidden unless it is fixed: what it keeps of before is not checked then;
+            // a value saved before, like by an older version without the limits, is not checked either, so it does not
+            // stop saving the other values
             Mode mode = modes.get(field.key);
-            if (value != null && (mode == null || FakeIds.FIXED.equals(getMode(mode))) && !isValid(field, value)) {
-                til.setError(getString(R.string.msg_invalid, value));
+            if (value != null && (mode == null || FakeIds.FIXED.equals(getMode(mode))) &&
+                    !value.equals(values.get(field.key)) && !isValid(field, value)) {
+                Integer rule = getRule(field);
+                til.setError(rule == null ? getString(R.string.msg_invalid, value) : getString(rule));
                 input.requestFocus();
                 return;
             }
@@ -1179,9 +1186,121 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         return (field.type == Type.LOCATION ? LOCATION_VALUES : CONTACTS_VALUES);
     }
 
+    // The longest value of an identifier, which its field takes, and which characters it takes; a value of another
+    // form would tell the app it is fake. The serial number is that of the compatibility test of Android (CTS
+    // BuildTest.SERIAL_NUMBER_PATTERN), an IMEI that of 3GPP TS 23.003, which value_device_id.lua needs for the
+    // other SIM slots too, a phone number that of ITU E.164 and an email address that of RFC 5321
+    private static final int SERIAL_MAX = 20;
+    private static final int ANDROID_ID_MAX = 16;
+    private static final int IMEI_LENGTH = 15;
+    private static final int MEID_LENGTH = 14;
+    private static final int PHONE_MAX = 15;
+    private static final int EMAIL_MAX = 254;
+    private static final String DIGITS = "0123456789";
+    private static final String HEX = "0123456789abcdefABCDEF";
+
+    private void limit(Field field, TextInputLayout til, EditText input) {
+        int max;
+        List<InputFilter> filters = new ArrayList<>();
+        switch (field.key) {
+            case FakeIds.SERIAL:
+                max = SERIAL_MAX;
+                filters.add(chars(DIGITS + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", null));
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
+                        InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+                break;
+            case FakeIds.ANDROID_ID:
+                max = ANDROID_ID_MAX;
+                filters.add(chars(HEX, false));
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
+                        InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+                break;
+            case FakeIds.IMEI:
+                max = IMEI_LENGTH;
+                filters.add(chars(DIGITS, null));
+                input.setInputType(InputType.TYPE_CLASS_NUMBER);
+                break;
+            case FakeIds.MEID:
+                max = MEID_LENGTH;
+                filters.add(chars(HEX, true));
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
+                        InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+                break;
+            case "value.phone_number":
+                max = PHONE_MAX + 1;
+                filters.add(chars(DIGITS + "+", null));
+                input.setInputType(InputType.TYPE_CLASS_PHONE);
+                break;
+            case "value.email":
+                max = EMAIL_MAX;
+                input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+                break;
+            default:
+                return;
+        }
+        filters.add(new InputFilter.LengthFilter(max));
+        input.setFilters(filters.toArray(new InputFilter[0]));
+        til.setCounterEnabled(true);
+        til.setCounterMaxLength(max);
+    }
+
+    // The form of an identifier, which an invalid value is told with
+    private static Integer getRule(Field field) {
+        switch (field.key) {
+            case FakeIds.SERIAL:
+                return R.string.rule_serial;
+            case FakeIds.ANDROID_ID:
+                return R.string.rule_android_id;
+            case FakeIds.IMEI:
+                return R.string.rule_imei;
+            case FakeIds.MEID:
+                return R.string.rule_meid;
+            case "value.phone_number":
+                return R.string.rule_phone_number;
+            case "value.email":
+                return R.string.rule_email;
+            default:
+                return null;
+        }
+    }
+
+    // Takes only the characters given, also of a paste, in upper case (true), lower case (false) or as typed (null)
+    static InputFilter chars(String allowed, Boolean upper) {
+        return (source, start, end, dest, dstart, dend) -> {
+            StringBuilder kept = new StringBuilder();
+            boolean changed = false;
+            for (int i = start; i < end; i++) {
+                char c = source.charAt(i);
+                if (allowed.indexOf(c) < 0) {
+                    changed = true;
+                    continue;
+                }
+                char d = (upper == null ? c : upper ? Character.toUpperCase(c) : Character.toLowerCase(c));
+                changed |= (d != c);
+                kept.append(d);
+            }
+            return (changed ? kept : null);
+        };
+    }
+
     private static boolean isValid(Field field, String value) {
+        return isValid(field.key, value);
+    }
+
+    static boolean isValid(String key, String value) {
         try {
-            switch (field.key) {
+            switch (key) {
+                case FakeIds.SERIAL:
+                    return value.matches("[0-9A-Za-z]{6," + SERIAL_MAX + "}");
+                case FakeIds.IMEI:
+                    return value.matches("[0-9]{" + IMEI_LENGTH + "}") &&
+                            FakeIds.luhn(value.substring(0, IMEI_LENGTH - 1)) == value.charAt(IMEI_LENGTH - 1) - '0';
+                case FakeIds.MEID:
+                    return value.matches("[0-9A-Fa-f]{" + MEID_LENGTH + "}");
+                case "value.phone_number":
+                    return value.matches("\\+?[0-9]{1," + PHONE_MAX + "}");
+                case "value.email":
+                    return value.length() <= EMAIL_MAX && value.matches("[^@\\s]+@[^@\\s]+");
                 case "value.timezone":
                     return Arrays.asList(TimeZone.getAvailableIDs()).contains(value);
                 case "value.locale":

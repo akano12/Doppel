@@ -75,6 +75,13 @@
     <string name="msg_saved_restart">Saved, restart apps to apply</string>
     <string name="msg_saved_reboot">Saved, restart the device to apply</string>
     <string name="msg_invalid">Invalid value: %1$s</string>
+    <!-- The forms of identifiers, which their fields keep to and which saving checks, see ActivityValues.limit -->
+    <string name="rule_serial">6 to 20 letters and digits</string>
+    <string name="rule_android_id">Up to 16 hexadecimal digits</string>
+    <string name="rule_imei">15 digits with a valid check digit</string>
+    <string name="rule_meid">14 hexadecimal digits</string>
+    <string name="rule_phone_number">Up to 15 digits, with + in front for an international number</string>
+    <string name="rule_email">An email address, up to 254 characters</string>
     <string name="msg_invalid_max">Must not be below the minimum (%1$s)</string>
     <string name="msg_required">Required</string>
     <string name="msg_collection_invalid">No commas, and no spaces around the name</string>
