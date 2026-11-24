@@ -471,8 +471,8 @@ class Backup {
             Log.e(TAG, "Restore failed: " + ex);
             int failed = undo(undo);
             throw new RestoreException(failed == 0
-                    ? context.getString(R.string.msg_restore_undone, ex.toString())
-                    : context.getString(R.string.msg_restore_undone_partly, failed, ex.toString()), ex, failed);
+                    ? context.getString(R.string.msg_restore_undone, Ui.describe(context, ex))
+                    : context.getString(R.string.msg_restore_undone_partly, failed, Ui.describe(context, ex)), ex, failed);
         }
         return result;
     }

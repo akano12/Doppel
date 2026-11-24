@@ -146,6 +146,7 @@
     <string name="msg_restore_scripts">These definitions come with scripts, which run inside the apps they restrict, with the rights of those apps; restricting Android itself runs them inside system server, with the rights of the system. Restore only backups you trust.%1$s</string>
     <string name="msg_restore_android">This backup restricts Android itself. The scripts of the definitions which restrict it run inside system server, with the rights of the system, and can read all data of the device, or cause a bootloop. Restore only backups you trust.</string>
     <string name="msg_error">Error: %1$s</string>
+    <string name="msg_error_unknown">Something went wrong. The log of the app has the details.</string>
 
     <string name="msg_no_service">Module not running or updated</string>
     <string name="msg_review_settings">Review privacy settings</string>
@@ -166,7 +167,9 @@
     <string name="title_back">Back</string>
     <string name="title_more">More options</string>
     <string name="title_retry">Retry</string>
-    <string name="msg_no_service_help">Enable Doppel in the Xposed manager (like LSPosed) with System Framework in its scope, and also Settings Storage with the legacy Xposed API (like EdXposed), then restart the device.</string>
+    <string name="msg_no_service_help">Doppel needs an Xposed framework with the modern API (like LSPosed or Vector). Enable Doppel in it, add System Framework to its scope, then restart the device.</string>
+    <string name="msg_no_service_scope">Doppel is enabled in your Xposed framework, but System Framework is not in its scope. Add System Framework to the scope of Doppel, then restart the device.</string>
+    <string name="msg_no_service_restart">Doppel is enabled in your Xposed framework with System Framework in its scope, but it is not running yet. Restart the device.</string>
 
     <!-- Apps -->
     <string name="title_search_apps">Name, package or uid</string>
@@ -599,6 +602,7 @@
     <string name="title_restore_hint">From a backup file</string>
     <string name="title_clear_data">Clear restrictions and settings</string>
     <string name="title_clear_data_hint">Custom definitions are kept</string>
+    <string name="title_working">Working, please wait</string>
     <string name="title_license_row">License</string>
     <string name="msg_clear_sure">Remove all restrictions and settings, including fake values? This cannot be undone.</string>
     <string name="msg_cleared">Restrictions and settings removed</string>

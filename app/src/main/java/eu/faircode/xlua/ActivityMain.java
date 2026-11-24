@@ -25,6 +25,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.splashscreen.SplashScreen;
@@ -64,7 +65,10 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         // Checking the service is a call into system server, so not on the main thread
         final Context context = getApplicationContext();
         Ui.submit(() -> {
-            boolean available = Data.isAvailable(context);
+            int version = Data.getVersion(context);
+            boolean available = Data.isAvailable(version);
+            // Why not, as far as the app can tell; binder calls
+            String why = (available ? null : unavailable(context, version));
             // The local copies of the colors do not exist yet after an update
             ApplicationEx.Colors colors = (available ? ApplicationEx.Colors.get(context) : null);
             postUnlessGone(() -> {
@@ -77,7 +81,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
                         }
                         showMain(true);
                     } else
-                        showUnavailable();
+                        showUnavailable(why);
                 };
                 // Tabs cannot be added after the state of the screen was saved, like when it was left meanwhile
                 if (getSupportFragmentManager().isStateSaved())
@@ -87,7 +91,7 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
             });
         }, ex -> {
             // A failed check would else leave the screen blank; this screen has a button to try again
-            postUnlessGone(this::showUnavailable);
+            postUnlessGone(() -> showUnavailable(null));
             error(TAG, ex);
         });
     }
@@ -108,8 +112,26 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         outState.putBoolean(STATE_AVAILABLE, available);
     }
 
-    private void showUnavailable() {
+    // What to do, for the cases the app can tell apart: the module of the service is of another version, or the
+    // framework is connected, so the module is enabled; not connected can be no framework, a framework with the legacy
+    // API or a module which is not enabled, the app cannot tell, so the text covers them all
+    private static String unavailable(Context context, int version) {
+        boolean bound = Scope.available();
+        return context.getString(helpFor(version, bound, bound && Scope.inScope("system")), version, BuildConfig.VERSION_CODE);
+    }
+
+    static int helpFor(int version, boolean bound, boolean systemInScope) {
+        if (version >= 0 && version < BuildConfig.VERSION_CODE)
+            return R.string.msg_module_version;
+        if (version < 0 && bound)
+            return (systemInScope ? R.string.msg_no_service_restart : R.string.msg_no_service_scope);
+        return R.string.msg_no_service_help;
+    }
+
+    private void showUnavailable(String why) {
         setContentView(R.layout.activity_unavailable);
+        if (why != null)
+            ((TextView) findViewById(R.id.tvHelp)).setText(why);
         findViewById(R.id.btnRetry).setOnClickListener(view -> recreate());
         findViewById(R.id.btnDocs).setOnClickListener(view -> Ui.browse(this, Ui.URL_FAQ + "#user-content-faq3"));
     }

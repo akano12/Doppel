@@ -350,6 +350,15 @@
                 style="@style/XLua.SectionTitle"
                 android:text="@string/section_data" />
 
+            <!-- While a backup, restore or clear runs, see FragmentSettings.work -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/pbWork"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/title_working"
+                android:indeterminate="true"
+                android:visibility="gone" />
+
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">

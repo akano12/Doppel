@@ -344,7 +344,7 @@ final class GroupsSheet {
                         else
                             assigned.add(hook.getId());
                     update();
-                    failure = activity.getString(R.string.msg_error, ex.toString());
+                    failure = activity.getString(R.string.msg_error, Ui.describe(activity, ex));
                 });
                 throw ex;
             } finally {

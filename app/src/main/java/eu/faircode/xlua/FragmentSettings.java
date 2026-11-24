@@ -67,6 +67,10 @@ public class FragmentSettings extends FragmentBase {
     // which would close the dialog
     private static Backup.Result restored = null;
 
+    // A backup, restore or clear is running: they change what the others read and write, so one at a time; static like
+    // the result, the screen can be recreated meanwhile
+    private static volatile boolean working = false;
+
     private ImageView ivStatus;
     private TextView tvStatus;
     private TextView tvVersion;
@@ -81,6 +85,8 @@ public class FragmentSettings extends FragmentBase {
     private LinearLayout llPalettes;
     private LinearLayout llIcons;
     private View llBlack;
+    private View pbWork;
+    private View[] dataRows;
     private MaterialSwitch swBlack;
 
     private List<String> collections = new ArrayList<>(); // Known collections
@@ -120,6 +126,9 @@ public class FragmentSettings extends FragmentBase {
         llIcons = view.findViewById(R.id.llIcons);
         llBlack = view.findViewById(R.id.llBlack);
         swBlack = view.findViewById(R.id.swBlack);
+        pbWork = view.findViewById(R.id.pbWork);
+        dataRows = new View[]{view.findViewById(R.id.llBackup), view.findViewById(R.id.llRestore), view.findViewById(R.id.llClear)};
+        showWorking();
 
         tvVersion.setText(getString(R.string.title_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
 
@@ -163,6 +172,32 @@ public class FragmentSettings extends FragmentBase {
                 .show());
 
         return view;
+    }
+
+    // The progress and the rows which start the work, from what runs now
+    private void showWorking() {
+        pbWork.setVisibility(working ? View.VISIBLE : View.GONE);
+        for (View row : dataRows) {
+            row.setEnabled(!working);
+            row.setAlpha(working ? 0.38f : 1f);
+        }
+    }
+
+    // Run a backup, restore or clear with progress shown, and none other started meanwhile; also not a restore which
+    // was confirmed before another work started
+    private void work(Ui.Task task) {
+        if (working)
+            return;
+        working = true;
+        showWorking();
+        run(TAG, () -> {
+            try {
+                task.run();
+            } finally {
+                working = false;
+                post(this::showWorking);
+            }
+        });
     }
 
     @Override
@@ -220,6 +255,7 @@ public class FragmentSettings extends FragmentBase {
                 // Until it is closed, so also a screen recreated with the dialog open shows it again
                 if (restored != null && !hasDialog() && !ApplicationEx.changesNight(requireActivity(), colors.theme))
                     track(showRestored(requireActivity(), restored), () -> restored = null);
+                showWorking();
                 showPalettes(ApplicationEx.getPalette(context));
                 boolean current = (before == changes);
                 swBlack.setOnCheckedChangeListener(null);
@@ -428,7 +464,7 @@ public class FragmentSettings extends FragmentBase {
 
     private void backup(Uri uri) {
         final Activity activity = requireActivity();
-        run(TAG, () -> {
+        work(() -> {
             int[] counts = Backup.save(activity, uri);
             Ui.message(activity, activity.getString(R.string.msg_backup_done, counts[0], counts[1], counts[2]));
         });
@@ -458,7 +494,7 @@ public class FragmentSettings extends FragmentBase {
 
     private void restore(JSONObject jroot) {
         final Activity activity = requireActivity();
-        run(TAG, () -> {
+        work(() -> {
             restored = Backup.restore(activity, jroot);
             post(this::load);
         });
@@ -511,7 +547,7 @@ public class FragmentSettings extends FragmentBase {
     // Restrictions and settings of the current user; custom definitions are kept
     private void clear() {
         final Activity activity = requireActivity();
-        run(TAG, () -> {
+        work(() -> {
             Data.clearData(activity);
             Ui.message(activity, activity.getString(R.string.msg_cleared));
             post(this::load);

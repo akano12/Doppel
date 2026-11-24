@@ -150,6 +150,9 @@ final class Ui {
     static final String[] MIME_JSON = {"application/json", "text/*", "application/octet-stream"};
     // Of a message with an action, in milliseconds, see message
     private static final int ACTION_DURATION = 6000;
+    // Errors can be long, like what a failed restore did, so there is time to read them to the end
+    private static final int ERROR_DURATION = 12000;
+    private static final int ERROR_LINES = 8;
 
     private Ui() {
     }
@@ -302,6 +305,8 @@ final class Ui {
             Snackbar snackbar = Snackbar.make(activity.findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG);
             if (activity instanceof Anchored)
                 snackbar.setAnchorView(((Anchored) activity).getMessageAnchor());
+            // The default of two lines cuts what a failure says
+            ((TextView) snackbar.getView().findViewById(com.google.android.material.R.id.snackbar_text)).setMaxLines(ERROR_LINES);
             // Time to read the message and to reach its action, like Undo; the action belongs to the screen which
             // started the work, so it is left out when that screen is gone, else tapping it would do nothing
             if (action != null && activity == started) {
@@ -319,7 +324,13 @@ final class Ui {
 
     // Log an error and show it, with an action to try again
     static void error(Activity activity, String tag, Throwable ex, Runnable retry) {
-        error(activity, tag, ex, retry, ACTION_DURATION);
+        error(activity, tag, ex, retry, retry == null ? ERROR_DURATION : ACTION_DURATION);
+    }
+
+    // What went wrong in words of the user: the message of the exception, which has no class names
+    static String describe(Context context, Throwable ex) {
+        String message = ex.getMessage();
+        return (message == null || message.trim().isEmpty() ? context.getString(R.string.msg_error_unknown) : message);
     }
 
     // Screens which do not load again by themselves keep the action until it is used: Snackbar.LENGTH_INDEFINITE
@@ -328,8 +339,10 @@ final class Ui {
         if (activity != null && ex instanceof Data.ModuleVersionException)
             versionSkew(activity, ex.getMessage());
         else if (activity != null)
-            message(activity, activity.getString(R.string.msg_error, ex.toString()),
-                    retry == null ? null : activity.getString(R.string.title_retry), retry, duration);
+            // An error without a retry has OK, to close it once read
+            message(activity, activity.getString(R.string.msg_error, describe(activity, ex)),
+                    activity.getString(retry == null ? android.R.string.ok : R.string.title_retry),
+                    retry == null ? () -> { } : retry, duration);
     }
 
     // The dialog of a module of another version in the service, see Data.requireSameVersion
