@@ -683,8 +683,12 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             } else if (FakeIds.FIXED.equals(chosen)) {
                 value = (input == null ? null : getValue(field, input));
                 if (value == null) {
-                    value = getDefault(field, null);
-                    if (field.builtin != null || FakeIds.ANDROID_ID.equals(field.key))
+                    // An app's fixed value which is empty is the one of all apps, like the placeholder of its field
+                    String inherited = (global ? null : globals.get(field.key));
+                    value = getDefault(field, inherited);
+                    if (inherited != null)
+                        tag = R.string.title_tag_all_apps;
+                    else if (field.builtin != null || FakeIds.ANDROID_ID.equals(field.key))
                         tag = R.string.title_tag_default;
                 }
                 pill = R.string.title_mode_fixed;
