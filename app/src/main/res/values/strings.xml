@@ -44,7 +44,6 @@
     <string name="title_values_custom">Custom hooks</string>
     <string name="title_value_serial">Serial number</string>
     <string name="title_value_android_id">Android ID</string>
-    <string name="title_value_android_id_default">one for each app developer, which stays the same</string>
     <string name="title_value_imei">IMEI</string>
     <string name="title_value_meid">MEID</string>
     <string name="title_value_phone_number">Phone number</string>
@@ -57,7 +56,6 @@
     <string name="title_value_longitude">Longitude</string>
     <string name="title_value_accuracy">Coarse accuracy (meters)</string>
     <string name="title_value_contacts">Contacts</string>
-    <string name="title_default">Default: %1$s</string>
     <string name="title_global">All apps: %1$s</string>
     <string-array name="location_types">
         <item>Default (0, 0)</item>
@@ -581,12 +579,6 @@
     <string name="title_clear_field">Clear %1$s</string>
     <string name="title_reset">Clear</string>
     <string name="msg_no_changes">No changes</string>
-    <string name="title_hint_restricted">%1$s · restricted for this app</string>
-    <string name="title_hint_unrestricted">%1$s · not restricted, the real value is given</string>
-    <plurals name="title_hint_apps">
-        <item quantity="one">%1$s · restricted for %2$d app</item>
-        <item quantity="other">%1$s · restricted for %2$d apps</item>
-    </plurals>
     <string name="title_hint_no_apps">%1$s · restricted for no app</string>
     <string name="title_restrict">Restrict</string>
     <!-- Fake values: sections, the state of a value in its row, the chips and the switch of an app's own value -->
@@ -595,13 +587,15 @@
     <string name="title_tag_default">default</string>
     <string name="title_tag_all_apps">all apps</string>
     <string name="title_value_none">none</string>
+    <string name="title_value_android_id_short">one per developer</string>
     <string name="title_value_not_set">not set</string>
     <string name="title_own_count">Own · %1$d</string>
     <string name="title_own_filter">Only the values of this app</string>
     <string name="title_own_value">Own value for %1$s</string>
     <string name="title_values_app_switch_hint">Switch a value on to give %1$s its own. Off, it gets the value for all apps.</string>
     <string name="title_search_values">Value or setting</string>
-    <string name="title_reader_restrict">%1$s · Restrict</string>
+    <string name="title_reader_unrestricted">%1$s (not restricted)</string>
+    <string name="title_random">Random</string>
     <plurals name="title_reader_apps">
         <item quantity="one">%1$s · %2$d app</item>
         <item quantity="other">%1$s · %2$d apps</item>

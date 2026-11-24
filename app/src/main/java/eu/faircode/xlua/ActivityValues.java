@@ -46,7 +46,6 @@ import androidx.core.widget.NestedScrollView;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButtonToggleGroup;
-import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -103,10 +102,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         Field field;
         MaterialButtonToggleGroup group;
         View row; // The field of the fixed value
+        View random; // Which makes one, with the field only
         View box;
         TextView tvBox;
         TextView tvBoxValue;
-        MaterialCheckBox cbAll;
+        MaterialSwitch cbAll;
     }
 
     // An app without a mode of its own uses the one of all apps
@@ -159,7 +159,6 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
     private final Map<String, List<String>> readers = new HashMap<>();
     private final Set<String> restricted = new HashSet<>();
     private final Map<String, Integer> restricting = new HashMap<>();
-    private final List<View> hints = new ArrayList<>(); // Under the values, see bindHints
     private XApp app = null; // The app of the values, when they are of one app
     private List<XHook> hooks = new ArrayList<>();
     private List<String> collection = new ArrayList<>();
@@ -175,7 +174,9 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         TextView tvPill;
         ImageView ivExpand;
         MaterialSwitch swOwn;
-        ChipGroup readers;
+        List<String> groups; // Which read the value, null for none
+        TextView tvReaders;
+        View btnRestrict;
         View section;
     }
 
@@ -421,7 +422,6 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         container.removeAllViews();
         inputs.clear();
         modes.clear();
-        hints.clear();
         rows.clear();
         opened.clear();
         sectionChips.clear();
@@ -508,10 +508,16 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 mode.tvBox = view.findViewById(R.id.tvBox);
                 mode.tvBoxValue = view.findViewById(R.id.tvBoxValue);
                 mode.cbAll = view.findViewById(R.id.cbAll);
-                view.findViewById(R.id.tvTitle).setVisibility(View.GONE);
-                ((LinearLayout.LayoutParams) view.getLayoutParams()).topMargin = 0;
                 view.findViewById(R.id.btnInherit).setVisibility(View.GONE);
                 editor.addView(view);
+                // The choice is next to the title, in the place of the pill of the mode, so it changes without
+                // opening the row
+                LinearLayout head = row.view.findViewById(R.id.llHead);
+                ((android.view.ViewGroup) mode.group.getParent()).removeView(mode.group);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                lp.setMarginStart(Math.round(8 * getResources().getDisplayMetrics().density));
+                head.addView(mode.group, head.indexOfChild(row.tvPill), lp);
                 modes.put(field.key, mode);
             }
 
@@ -548,18 +554,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
             }
 
             inputs.put(field.key, til);
+            editor.addView(til);
             if (id) {
-                // The randomize button at the end of the field, in the place of the button which clears it
-                til.setEndIconMode(TextInputLayout.END_ICON_CUSTOM);
-                til.setEndIconDrawable(R.drawable.ic_shuffle);
-                til.setEndIconTintList(Ui.tint(this, androidx.appcompat.R.attr.colorPrimary));
-                til.setEndIconContentDescription(getString(R.string.title_randomize_field, getString(field.title)));
-                til.setEndIconOnClickListener(view -> input.setText(FakeIds.generate(field.key, random)));
-                editor.addView(til);
                 mode.row = til;
                 initMode(mode);
-            } else
-                editor.addView(til);
+            }
             // An error is of the text it was given for
             Ui.onTextChanged(input, text -> {
                 til.setError(null);
@@ -567,21 +566,23 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 updateBar();
             });
 
-            // The groups which read the value, under it
-            List<String> groups = readers.get(field.key);
-            if (groups != null) {
-                row.readers = new ChipGroup(this);
-                row.readers.setChipSpacingVertical(0);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                lp.topMargin = Math.round(4 * getResources().getDisplayMetrics().density);
-                editor.addView(row.readers, lp);
-                for (String group : groups) {
-                    Chip hint = (Chip) inflater.inflate(R.layout.item_value_reader, row.readers, false);
-                    hint.setTag(group);
-                    row.readers.addView(hint);
-                    hints.add(hint);
+            // Under the field one line: the groups which read the value, and Random for an identifier; the groups
+            // are bound with the action to restrict them, see bindHints
+            row.groups = readers.get(field.key);
+            if (row.groups != null || id) {
+                View actions = inflater.inflate(R.layout.item_value_actions, editor, false);
+                row.tvReaders = actions.findViewById(R.id.tvReaders);
+                row.btnRestrict = actions.findViewById(R.id.btnRestrict);
+                row.tvReaders.setVisibility(row.groups == null ? View.INVISIBLE : View.VISIBLE);
+                if (id) {
+                    View btnRandom = actions.findViewById(R.id.btnRandom);
+                    btnRandom.setVisibility(View.VISIBLE);
+                    btnRandom.setContentDescription(getString(R.string.title_randomize_field, title));
+                    btnRandom.setOnClickListener(view -> input.setText(FakeIds.generate(field.key, random)));
+                    mode.random = btnRandom;
+                    btnRandom.setVisibility(mode.row.getVisibility());
                 }
+                editor.addView(actions);
             }
 
             if (expanded.contains(field.key))
@@ -723,10 +724,16 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
                 ? androidx.appcompat.R.attr.colorPrimary : com.google.android.material.R.attr.colorOnSurfaceVariant));
         row.tvTag.setText(tag == null ? null : getString(tag));
         row.tvTag.setVisibility(tag == null ? View.GONE : View.VISIBLE);
+        // An identifier has its choice in the row instead of the pill, while it is the app's own; on the screen of an
+        // app, which has the switch in the row too, without the arrow, for room; a tap on the row still opens it
+        if (mode != null)
+            pill = null;
         row.tvPill.setText(pill == null ? null : getString(pill));
         row.tvPill.setVisibility(pill == null || !own ? View.GONE : View.VISIBLE);
+        if (mode != null)
+            mode.group.setVisibility(own ? View.VISIBLE : View.GONE);
         boolean open = expanded.contains(field.key);
-        row.ivExpand.setVisibility(own ? View.VISIBLE : View.GONE);
+        row.ivExpand.setVisibility(own && (global || mode == null) ? View.VISIBLE : View.GONE);
         row.ivExpand.setRotation(open ? 180 : 0);
         if (!global)
             row.swOwn.setChecked(own);
@@ -745,7 +752,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         if (field.builtin != null)
             return field.builtin;
         if (FakeIds.ANDROID_ID.equals(field.key))
-            return getString(R.string.title_value_android_id_default);
+            return getString(R.string.title_value_android_id_short);
         return getString(field.title == 0 ? R.string.title_value_not_set : R.string.title_value_none);
     }
 
@@ -756,7 +763,7 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         if (field.builtin != null)
             return field.builtin;
         if (FakeIds.ANDROID_ID.equals(field.key))
-            return getString(R.string.title_value_android_id_default);
+            return getString(R.string.title_value_android_id_short);
         return getString(R.string.title_value_none);
     }
 
@@ -829,39 +836,60 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
 
     // Under each value: the group which reads it and whether it restricts the app, with the action to restrict it,
     // or for all apps how many apps it restricts; a value no group reads has no line
+    // In one line: for all apps the groups with how many apps they restrict, the same number once; for an app the
+    // groups, those which do not restrict it marked, with Restrict for them
     private void bindHints() {
         boolean global = GLOBAL.equals(category);
-        for (View view : hints) {
-            final String group = (String) view.getTag();
-            String title = Groups.getTitle(this, group);
-            Chip chip = (Chip) view;
-            int color;
-            String described;
-            boolean action = false;
+        for (Row row : rows.values()) {
+            if (row.groups == null || row.tvReaders == null)
+                continue;
+            List<String> titles = new ArrayList<>();
+            final List<String> unrestricted = new ArrayList<>();
+            String text;
             if (global) {
-                int apps = restricting.getOrDefault(group, 0);
-                chip.setText(apps == 0 ? title
-                        : getResources().getQuantityString(R.plurals.title_reader_apps, apps, title, apps));
-                described = (apps == 0
-                        ? getString(R.string.title_hint_no_apps, title)
-                        : getResources().getQuantityString(R.plurals.title_hint_apps, apps, title, apps));
-                color = (apps == 0 ? R.attr.colorWarning : R.attr.colorSuccess);
+                Set<Integer> counts = new HashSet<>();
+                for (String group : row.groups)
+                    counts.add(restricting.getOrDefault(group, 0));
+                boolean same = (counts.size() == 1);
+                for (String group : row.groups) {
+                    String title = Groups.getTitle(this, group);
+                    int apps = restricting.getOrDefault(group, 0);
+                    titles.add(same ? title : apps == 0 ? getString(R.string.title_hint_no_apps, title)
+                            : getResources().getQuantityString(R.plurals.title_reader_apps, apps, title, apps));
+                }
+                text = TextUtils.join(", ", titles);
+                if (same) {
+                    int apps = counts.iterator().next();
+                    text = (apps == 0 ? getString(R.string.title_hint_no_apps, text)
+                            : getResources().getQuantityString(R.plurals.title_reader_apps, apps, text, apps));
+                }
             } else {
-                boolean on = restricted.contains(group);
-                action = (!on && app != null);
-                chip.setText(action ? getString(R.string.title_reader_restrict, title) : title);
-                described = getString(on ? R.string.title_hint_restricted : R.string.title_hint_unrestricted, title);
-                // Screen readers tell which group a tap restricts
-                if (action)
-                    described = getString(R.string.title_described, described,
-                            getString(R.string.title_described, getString(R.string.title_restrict), title));
-                color = (on ? R.attr.colorSuccess : R.attr.colorWarning);
+                for (String group : row.groups) {
+                    String title = Groups.getTitle(this, group);
+                    if (restricted.contains(group))
+                        titles.add(title);
+                    else {
+                        titles.add(getString(R.string.title_reader_unrestricted, title));
+                        unrestricted.add(group);
+                    }
+                }
+                text = TextUtils.join(", ", titles);
             }
-            chip.setContentDescription(described);
-            chip.setChipIconTint(Ui.tint(this, color));
-            chip.setClickable(action);
-            chip.setFocusable(action);
-            chip.setOnClickListener(action ? v -> restrict(group) : null);
+            row.tvReaders.setText(text);
+            boolean action = (!global && app != null && !unrestricted.isEmpty());
+            row.btnRestrict.setVisibility(action ? View.VISIBLE : View.GONE);
+            if (action) {
+                // Screen readers tell which groups a tap restricts
+                List<String> names = new ArrayList<>();
+                for (String group : unrestricted)
+                    names.add(Groups.getTitle(this, group));
+                row.btnRestrict.setContentDescription(getString(R.string.title_described,
+                        getString(R.string.title_restrict), TextUtils.join(", ", names)));
+                row.btnRestrict.setOnClickListener(v -> {
+                    for (String group : unrestricted)
+                        restrict(group);
+                });
+            }
         }
     }
 
@@ -888,19 +916,10 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         });
     }
 
-    // What applies when the field is empty; a list of features has no default, so its format, too long for the label
+    // The note under a field: what applies when it is empty is its placeholder, see getPlaceholder, so only the
+    // format of a list of features, which has no default
     private String getFallbackHint(Field field) {
-        String fallback = globals.get(field.key);
-        if (fallback != null)
-            return getString(R.string.title_global, fallback);
-        else if (field.builtin != null)
-            return getString(R.string.title_default, field.builtin);
-        else if (FakeIds.ANDROID_ID.equals(field.key))
-            return getString(R.string.title_default, getString(R.string.title_value_android_id_default));
-        else if ("features.keep".equals(field.key))
-            return getString(R.string.title_value_features_hint);
-        else
-            return null;
+        return ("features.keep".equals(field.key) ? getString(R.string.title_value_features_hint) : null);
     }
 
     // The coordinates are used for a fixed location only, the accuracy for a coarse real location only,
@@ -1017,6 +1036,8 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         boolean fixed = FakeIds.FIXED.equals(chosen);
         boolean boot = FakeIds.BOOT.equals(chosen) || FakeIds.BOOT_ALL.equals(chosen);
         mode.row.setVisibility(fixed ? View.VISIBLE : View.GONE);
+        if (mode.random != null)
+            mode.random.setVisibility(fixed ? View.VISIBLE : View.GONE);
         mode.box.setVisibility(fixed ? View.GONE : View.VISIBLE);
         mode.cbAll.setVisibility(boot ? View.VISIBLE : View.GONE);
 
@@ -1240,8 +1261,11 @@ public class ActivityValues extends ActivityBase implements Ui.Anchored {
         }
         filters.add(new InputFilter.LengthFilter(max));
         input.setFilters(filters.toArray(new InputFilter[0]));
-        til.setCounterEnabled(true);
-        til.setCounterMaxLength(max);
+        // The count at the end of the field, which needs no line of its own
+        final int limit = max;
+        Ui.onTextChanged(input, text -> til.setSuffixText(text.length() + "/" + limit));
+        til.setSuffixText(input.length() + "/" + limit);
+        til.setSuffixTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelSmall);
     }
 
     // The form of an identifier, which an invalid value is told with
