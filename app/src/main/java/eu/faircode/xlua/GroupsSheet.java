@@ -135,9 +135,9 @@ final class GroupsSheet {
 
         Ui.loadIcon(view.findViewById(R.id.ivIcon), app.packageName, app.icon);
         ((TextView) view.findViewById(R.id.tvLabel)).setText(app.getLabel());
-        MaterialSwitch swAll = view.findViewById(R.id.swAll);
-        track = swAll.getTrackTintList();
-        view.findViewById(R.id.cvAll).setOnClickListener(v -> {
+        // The track of a switch which is on, which a switch of a part shows with a dash, see Ui.setPartial
+        track = new MaterialSwitch(context).getTrackTintList();
+        view.findViewById(R.id.btnAll).setOnClickListener(v -> {
             if (isComplete(available))
                 assign(available, false);
             else
@@ -159,8 +159,81 @@ final class GroupsSheet {
 
         buildSections(inflater);
         update();
+        // A section of which some groups are restricted and others not opens, the others stay folded
+        for (Section section : folds)
+            if (section.restricted() > 0 && section.restricted() < section.names.size())
+                section.setOpen(true);
         dialog.show();
     }
+
+    // A section which folds, with its part of the bar
+    private final class Section {
+        final List<String> names;
+        final List<XHook> hooks = new ArrayList<>();
+        final View view;
+        final LinearProgressIndicator bar;
+
+        Section(List<String> names, View view, LinearProgressIndicator bar) {
+            this.names = names;
+            this.view = view;
+            this.bar = bar;
+            for (String group : names)
+                hooks.addAll(groups.get(group));
+        }
+
+        int restricted() {
+            int restricted = 0;
+            for (String group : names)
+                if (isRestricted(groups.get(group)))
+                    restricted++;
+            return restricted;
+        }
+
+        void setOpen(boolean open) {
+            view.findViewById(R.id.llRows).setVisibility(open ? View.VISIBLE : View.GONE);
+            view.findViewById(R.id.ivExpand).setRotation(open ? 180 : 0);
+            View head = view.findViewById(R.id.llHead);
+            head.setContentDescription(activity.getString(R.string.title_described,
+                    ((TextView) view.findViewById(R.id.tvSection)).getText(),
+                    ((TextView) view.findViewById(R.id.tvState)).getText()));
+            ViewCompat.setStateDescription(head, activity.getString(open ? R.string.title_expanded : R.string.title_collapsed));
+        }
+
+        boolean isOpen() {
+            return view.findViewById(R.id.llRows).getVisibility() == View.VISIBLE;
+        }
+
+        void bind() {
+            int restricted = restricted();
+            int total = names.size();
+            String state;
+            if (restricted == total)
+                state = activity.getResources().getQuantityString(R.plurals.title_section_all_restricted, total, total);
+            else if (restricted == 0)
+                state = activity.getString(R.string.title_section_none_restricted);
+            else if (total - restricted == 1) {
+                String through = null;
+                for (String group : names)
+                    if (!isRestricted(groups.get(group)))
+                        through = Groups.getTitle(activity, group);
+                state = activity.getString(R.string.title_section_let_through, restricted, total, through);
+            } else
+                state = activity.getString(R.string.title_of, restricted, total);
+            ((TextView) view.findViewById(R.id.tvState)).setText(state);
+            boolean complete = isComplete(hooks);
+            MaterialSwitch sw = view.findViewById(R.id.swSection);
+            Ui.setPartial(sw, track, restricted > 0 && !complete);
+            sw.setChecked(restricted > 0);
+            CharSequence title = ((TextView) view.findViewById(R.id.tvSection)).getText();
+            sw.setContentDescription(activity.getString(complete ? R.string.title_section_none_of
+                    : R.string.title_section_all_of, title));
+            setOpen(isOpen());
+            bar.setMax(Math.max(1, total));
+            bar.setProgressCompat(restricted, true);
+        }
+    }
+
+    private final List<Section> folds = new ArrayList<>();
 
     // The sections with groups, in the order of the screen of the app, with the groups by title; also for that screen
     static Map<Integer, List<String>> bySection(Context context, Collection<String> groups) {
@@ -212,34 +285,47 @@ final class GroupsSheet {
         return vGroup;
     }
 
-    // The sections of the screen of the app
+    // The sections of the screen of the app, which fold, each with a switch for all its groups and a part of the bar
     private void buildSections(LayoutInflater inflater) {
         LinearLayout llSections = view.findViewById(R.id.llSections);
+        LinearLayout llBar = view.findViewById(R.id.llBar);
+        float density = activity.getResources().getDisplayMetrics().density;
         for (Map.Entry<Integer, List<String>> entry : bySection(activity, groups.keySet()).entrySet()) {
             final List<String> names = entry.getValue();
-            View vSection = inflateSection(inflater, llSections, entry.getKey());
+            View vSection = inflater.inflate(R.layout.item_sheet_section, llSections, false);
+            TextView tvSection = vSection.findViewById(R.id.tvSection);
+            tvSection.setText(entry.getKey());
+            ViewCompat.setAccessibilityHeading(tvSection, true);
             LinearLayout llRows = vSection.findViewById(R.id.llRows);
             for (String group : names)
                 llRows.addView(buildGroup(inflater, llRows, group));
 
-            Button btnSection = vSection.findViewById(R.id.btnSection);
-            final List<XHook> hooks = new ArrayList<>();
-            for (String group : names)
-                hooks.addAll(groups.get(group));
-            btnSection.setOnClickListener(v -> {
+            LinearProgressIndicator bar = new LinearProgressIndicator(activity);
+            bar.setTrackThickness(Math.round(8 * density));
+            bar.setTrackCornerRadius(Math.round(4 * density));
+            bar.setTrackStopIndicatorSize(0);
+            bar.setIndicatorTrackGapSize(0);
+            bar.setIndicatorColor(Ui.color(activity, androidx.appcompat.R.attr.colorPrimary));
+            bar.setTrackColor(Ui.color(activity, com.google.android.material.R.attr.colorSurfaceContainerHighest));
+            bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, names.size());
+            if (llBar.getChildCount() > 0)
+                lp.setMarginStart(Math.round(3 * density));
+            llBar.addView(bar, lp);
+
+            final Section section = new Section(names, vSection, bar);
+            vSection.findViewById(R.id.llHead).setOnClickListener(v -> section.setOpen(!section.isOpen()));
+            vSection.findViewById(R.id.swSection).setOnClickListener(v -> {
                 // Like Restrict all, restricting all of a section of system server asks first
-                if (isComplete(hooks))
-                    assign(hooks, false);
-                else
-                    Ui.restrictAll(activity, app, () -> assign(hooks, true));
+                if (isComplete(section.hooks))
+                    assign(section.hooks, false);
+                else {
+                    update();
+                    Ui.restrictAll(activity, app, () -> assign(section.hooks, true));
+                }
             });
-            sections.add(() -> {
-                int restricted = 0;
-                for (String group : names)
-                    if (isRestricted(groups.get(group)))
-                        restricted++;
-                bindSection(activity, vSection, restricted, names.size(), isComplete(hooks));
-            });
+            folds.add(section);
+            sections.add(section::bind);
             llSections.addView(vSection);
         }
     }
@@ -292,21 +378,19 @@ final class GroupsSheet {
 
         int total = groups.size();
         boolean complete = isComplete(available);
-        LinearProgressIndicator pi = view.findViewById(R.id.piGroups);
-        pi.setMax(Math.max(1, total));
-        pi.setProgressCompat(restricted, true);
-        pi.setIndicatorColor(Ui.color(activity, complete ? androidx.appcompat.R.attr.colorPrimary : R.attr.colorWarning));
+        ((TextView) view.findViewById(R.id.tvTotal)).setText(activity.getString(R.string.title_fraction, restricted, total));
         ((TextView) view.findViewById(R.id.tvCount)).setText(restricted == 0
                 ? activity.getString(R.string.title_not_restricted)
                 : unscoped ? activity.getString(R.string.title_not_in_scope_hint)
-                : activity.getResources().getQuantityString(R.plurals.title_groups_restricted, total, restricted, total));
-        MaterialSwitch swAll = view.findViewById(R.id.swAll);
-        Ui.setPartial(swAll, track, restricted > 0 && !complete);
-        swAll.setChecked(restricted > 0);
-        // The action a tap takes: removing all when all are restricted
-        view.findViewById(R.id.cvAll).setContentDescription(activity.getString(R.string.title_described,
-                activity.getString(complete ? R.string.title_remove_all : R.string.title_restrict_all_groups),
+                : complete ? activity.getString(R.string.title_all_groups_restricted)
+                : activity.getResources().getQuantityString(R.plurals.title_groups_let_through,
+                total - restricted, total - restricted));
+        view.findViewById(R.id.tvCount).setContentDescription(activity.getString(R.string.title_described,
+                activity.getResources().getQuantityString(R.plurals.title_groups_restricted, total, restricted, total),
                 ((TextView) view.findViewById(R.id.tvCount)).getText()));
+        // The action a tap takes: removing all when all are restricted
+        Button btnAll = view.findViewById(R.id.btnAll);
+        btnAll.setText(complete ? R.string.title_remove_all : R.string.title_restrict_all_groups);
     }
 
     private boolean isComplete(List<XHook> hooks) {

@@ -287,10 +287,9 @@
     <string name="title_restrict_all_groups">Restrict all</string>
     <string name="title_remove_all">Remove all</string>
     <string name="title_groups">Groups</string>
-    <string name="title_groups_hint">A group is a set of hooks for one kind of data, like location or contacts</string>
     <string name="title_show_groups">Show the groups</string>
     <string name="title_done">Done</string>
-    <string name="title_sheet_more">Single hooks, fake values</string>
+    <string name="title_sheet_more">Open app page</string>
     <string name="title_section_all">All</string>
     <string name="title_section_none">None</string>
     <string name="title_section_all_of">Restrict all of %1$s</string>
@@ -584,6 +583,22 @@
     </plurals>
     <string name="title_hint_no_apps">%1$s · restricted for no app</string>
     <string name="title_restrict">Restrict</string>
+    <!-- Groups sheet: the sections fold, each with a switch for all of its groups -->
+    <string name="title_groups_of">Groups of</string>
+    <string name="title_fraction">%1$d/%2$d</string>
+    <string name="title_expanded">Expanded</string>
+    <string name="title_collapsed">Collapsed</string>
+    <plurals name="title_section_all_restricted">
+        <item quantity="one">%1$d restricted</item>
+        <item quantity="other">All %1$d restricted</item>
+    </plurals>
+    <string name="title_section_none_restricted">None restricted</string>
+    <string name="title_section_let_through">%1$d of %2$d · %3$s let through</string>
+    <string name="title_all_groups_restricted">All groups restricted</string>
+    <plurals name="title_groups_let_through">
+        <item quantity="one">%1$d group let through</item>
+        <item quantity="other">%1$d groups let through</item>
+    </plurals>
     <string name="msg_group_restricted">%1$s restricted for %2$s</string>
     <string name="title_value_used_with">Used only when Location is %1$s</string>
 
