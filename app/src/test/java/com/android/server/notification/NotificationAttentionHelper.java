@@ -19,13 +19,15 @@
 
 package com.android.server.notification;
 
-// Stand-in for the helper which alerts from Android 15, of which XNotify.hideFromListeners hooks sendAccessibilityEvent
+// Stand-in for the helper which alerts from Android 15, in the form of Android 17, of which XNotify.hideFromListeners hooks sendAccessibilityEvent
 @SuppressWarnings("unused")
 public class NotificationAttentionHelper {
     int buzzBeepBlinkLocked(NotificationRecord record, Object signals) {
         return 0;
     }
 
-    void sendAccessibilityEvent(NotificationRecord record) {
+    // Android 17 returns whether it sent the event
+    boolean sendAccessibilityEvent(NotificationRecord record) {
+        return true;
     }
 }

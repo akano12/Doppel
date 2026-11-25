@@ -91,7 +91,9 @@ final class XNotify {
             "notifyAssistantLocked", "notifyAssistantFeedbackReceived", "buzzBeepBlinkLocked",
             "reportSeen", "reportUserInteraction", "maybeRecordInterruptionLocked", "setNotificationsShownFromListener",
             "snoozeNotificationLocked", "onNotificationVisibilityChanged", "onNotificationClick", "onNotificationActionClick",
-            "onNotificationDirectReplied", "onNotificationSmartReplySent", "onNotificationExpansionChanged"));
+            "onNotificationDirectReplied", "onNotificationSmartReplySent", "onNotificationExpansionChanged",
+            // Android 17 calls isVisibleToListener here too
+            "cancelNotificationsFromListener"));
 
     private XNotify() {
     }
@@ -218,13 +220,17 @@ final class XNotify {
     // them, so screen readers do not announce them, also not to the user, like for a notification which does not exist.
     // The compiler of system server may have inlined the hooked methods into their callers, out of reach of the hooks,
     // which is likely for small ones, like isVisibleToListener up to Android 11, so their callers run in the interpreter.
-    // shortcut: not yet seen to work on a device, and what R8 inlined when the platform was built, what the compiler
-    // inlined into a caller of a caller or a legacy framework without deoptimizeMethod still bypasses the hooks;
-    // probe a listener, an app with usage access and an accessibility service on each version. All callers run in the
+    // Seen to work on API 33 (LSPosed 2.2.1) for a listener, an app with usage access, an accessibility service and a
+    // companion listener, also without deoptimizing, since neither R8 nor dex2oat speed inlined a hooked method there,
+    // and the emulator images of Android 10 to 17 keep every call site in dex. The deoptimization stays, which is what
+    // protects Android 9 to 11, where isVisibleToListener is private behind accessors. All callers run in the
     // interpreter from boot, also where no app is restricted, like makeRankingUpdateLocked, which notifyPostedLocked
-    // and notifyRankingUpdateLocked run for each listener over all notifications under the lock of the notifications,
-    // which costs system server time on each post, not measured; keep only the callers such a probe shows skipping a
-    // hook without it
+    // and notifyRankingUpdateLocked run for each listener over all notifications under the lock of the notifications;
+    // on API 33, 500 getActiveNotifications with 23 notifications took 211-234 µs deoptimized and 220-293 µs not,
+    // within noise
+    // shortcut: not yet probed on Android 9 to 11, and a vendor build which R8 optimizes otherwise or a legacy framework
+    // without deoptimizeMethod still bypasses the hooks; probe a listener, an app with usage access and an
+    // accessibility service on Android 9 to 11
     // shortcut: an accessibility service can still read them in the shade and in the window where they pop up, a status
     // bar which a vendor does not register as system loses them, the rare notification of the settings provider itself
     // after a restore of the hotspot settings on Android 11 to 14 loses its usage events too, and a listener which guesses
@@ -267,14 +273,16 @@ final class XNotify {
             }
 
         // void sendAccessibilityEvent(Notification notification, CharSequence packageName) up to Android 11,
-        // void sendAccessibilityEvent(NotificationRecord record) from Android 12, in NotificationAttentionHelper from Android 15
+        // void sendAccessibilityEvent(NotificationRecord record) from Android 12, in NotificationAttentionHelper from Android 15,
+        // boolean from Android 17, which returns whether it sent the event: false, Android's own answer with accessibility
+        // off, since null for a boolean would throw in the caller
         XBackend.Callback accessibility = new XBackend.Callback() {
             @Override
             void before(XCall call) {
                 if (hide(() -> (call.args.length == 2
                         ? isOwn(String.valueOf(call.args[1]), ((Notification) call.args[0]).getChannelId())
                         : isOwn(getSbn(call.args[0])))))
-                    call.setResult(null);
+                    call.setResult(((Method) call.method).getReturnType() == boolean.class ? Boolean.FALSE : null);
             }
         };
         hooked += backend.hookAll(service, "sendAccessibilityEvent", accessibility);
@@ -483,7 +491,7 @@ final class XNotify {
     // removed apps has a context of the framework for the user, of which a package context keeps the user. Both keep the
     // op package of the framework, which a package context takes from the context it is made from, so Android takes the
     // posts for every user as of the calling uid 1000 of system server, under which the channels are, and the receiver
-    // may cancel the posts of the service (read in AOSP, not yet checked on a device)
+    // may cancel the posts of the service (seen on API 33)
     static Context getSettingsContext(Context context) throws PackageManager.NameNotFoundException {
         if (XCore.SETTINGS_PACKAGE.equals(context.getPackageName()))
             return context;

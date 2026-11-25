@@ -306,6 +306,18 @@ public class XNotifyTest {
                 subclass.add(call.isReturnEarly());
             }
         assertEquals(List.of(true, true), subclass);
+
+        // Not sent, in the type each version returns: void, or from Android 17 false, since null would throw in the caller
+        List<Object> results = new ArrayList<>();
+        for (int i : hooked("sendAccessibilityEvent")) {
+            StatusBarNotification sbn = sbn(SETTINGS, "xlua_exception", "xlua");
+            Object[] args = (((Method) members.get(i)).getParameterCount() == 2
+                    ? new Object[]{sbn.getNotification(), sbn.getPackageName()} : new Object[]{new NotificationRecord(sbn)});
+            XCall call = new XCall(members.get(i), null, args);
+            callbacks.get(i).before(call);
+            results.add(((Method) members.get(i)).getReturnType() == boolean.class ? call.getResult() : "void:" + call.getResult());
+        }
+        assertEquals(List.of("void:null", "void:null", false), results);
     }
 
     @Test
@@ -360,6 +372,7 @@ public class XNotifyTest {
         start();
         callers.addAll(List.of(
                 "NotificationManagerService$1.addToListIfNeeded",
+                "NotificationManagerService$1.cancelNotificationsFromListener",
                 "NotificationManagerService$1.getActiveNotificationsFromListener",
                 "NotificationManagerService$1.getSnoozedNotificationsFromListener",
                 "NotificationManagerService$1.setNotificationsShownFromListener",

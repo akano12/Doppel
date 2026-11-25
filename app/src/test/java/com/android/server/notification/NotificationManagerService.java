@@ -46,6 +46,10 @@ public class NotificationManagerService {
         public void setNotificationsShownFromListener(Object token, String[] keys) {
         }
 
+        // Calls isVisibleToListener from Android 17
+        public void cancelNotificationsFromListener(Object token, String[] keys) {
+        }
+
         public ParceledListSlice<NotificationChannel> getNotificationChannelsFromPrivilegedListener(
                 Object token, String pkg, UserHandle user) {
             return null;
