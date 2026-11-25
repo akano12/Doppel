@@ -34,7 +34,7 @@ public class XLua implements IXposedHookLoadPackage {
     private XCore core = null;
 
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        // Claimed once: the claim is released before the app runs, and more packages can load after that
+        // Claimed once: the claim is released when the app-start hook fires, and more packages can load after that
         if (hasModernApi() || (core == null && !XCore.claim(backend)))
             return;
         if (core == null)

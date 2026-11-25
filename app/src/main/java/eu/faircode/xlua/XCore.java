@@ -114,8 +114,10 @@ class XCore {
     // failed (see startLater), since an app which runs without its hooks is the worse outcome.
     // shortcut: the reports of the last second before an app makes no more hooked calls wait for its next one, and are
     // lost when its process ends first; send them also when the last activity of the app stops if users miss them
-    // shortcut: the hooked call which sends the reports waits for the service, for a time not measured on a device; measure
-    // it and send them by a call which does not wait if apps slow down
+    // shortcut: the hooked call which sends the reports waits for the service: a call with one report took 0.6 to
+    // 2.3 ms (median) and up to about 10 ms on emulators (API 31 and 36), against 0.1 to 0.4 ms for a call the
+    // settings provider answers itself; measure a full batch on a phone, and send them by a call which does not wait,
+    // if apps slow down
     // Not final, like the next two, so tests do not wait
     static long reportDelay = TimeUnit.SECONDS.toNanos(1);
     static long mainDelay = TimeUnit.SECONDS.toNanos(30);
@@ -174,8 +176,10 @@ class XCore {
         }
     }
 
-    // Before the code of an app runs, when all entry points have claimed: apps can read the system properties,
-    // also apps without restrictions, which should get the answers of a device without Doppel
+    // When the app-start hook fires, see hookApplication, once all entry points have claimed: apps can read the system
+    // properties, also apps without restrictions, which should get the answers of a device without Doppel. The app's
+    // AppComponentFactory and the threads it starts can read the property before that, for a few ms (4 to 12 ms on
+    // emulators)
     static void release() {
         synchronized (System.class) {
             System.clearProperty(PROP_ENGINE);
@@ -449,10 +453,12 @@ class XCore {
     // The service answers the engine only: a query of its columns or a call of its method by the code of the app, outside
     // enterService, is marked on its way to the settings provider, where hookSettings leaves it to the settings provider,
     // so the app gets the error or the null of a device without Doppel. Installed in every process the engine hooks,
-    // also of an app without assignments now, since the service answers its uid once it has some.
-    // shortcut: not yet seen to fire on a device; the app's AppComponentFactory (Android 9 and later), which runs before
-    // the engine, and a query or call the app sends with IBinder.transact itself still get the answers of the service;
-    // upgrade to a token the code of the app cannot get
+    // also of an app without assignments now, since the service answers its uid once it has some. Seen to fire on
+    // Android 12 and 16.
+    // shortcut: a call the app sends with IBinder.transact itself, which needs no access to hidden APIs, still reaches
+    // the service at any time (a query by the source too), and so does a query or call of the app's AppComponentFactory
+    // (Android 9 and later), which runs before the engine and needs access to hidden APIs for a ContentProviderProxy of
+    // its own; upgrade to a token the code of the app cannot get
     void hideService(ClassLoader classLoader) throws Throwable {
         // https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/core/java/android/content/ContentProviderNative.java
         Class<?> cls = XResolver.resolveClass("android.content.ContentProviderProxy", classLoader);
@@ -532,9 +538,10 @@ class XCore {
         return (authority != null && Settings.AUTHORITY.equals(authority.substring(authority.lastIndexOf('@') + 1)));
     }
 
-    // Android 9 and later send the first five frames of a SecurityException of system server to the caller, also to
-    // apps outside the scope, where the frames of the hook would follow those of the settings provider: they are left
-    // out, so its caller, a method of ContentProvider or its Transport, follows like on a device without Doppel
+    // Android 9 and later send the first five frames of any exception of system server to the caller, at most once a
+    // second (Parcel.writeException), also to apps outside the scope, where the frames of the hook would follow those of
+    // the settings provider: they are left out, so its caller, a method of ContentProvider or its Transport, follows like
+    // on a device without Doppel
     // In the callbacks of system server, which an error of would reach it, see ModernBackend
     private static void withoutHookFrames(XCall call) {
         try {
@@ -563,8 +570,9 @@ class XCore {
     // answer, which Data reports as an error, instead of the error of the settings provider, which hooked apps take for
     // having no assignments; all other apps get the error of the settings provider, like without Doppel.
     // shortcut: a restricted app the service did not answer since the boot gets the error of the settings provider, so
-    // its process logs that it has no assigned hooks instead of the error (it runs without hooks either way); upgrade to
-    // assigned uids kept outside the database if that log matters
+    // its process logs that it has no assigned hooks instead of the error and, unlike an app the service answered before,
+    // whose engine tries again and installs the hooks late, it is not tried again; upgrade to assigned uids kept outside
+    // the database if that matters
     private static int answers(XCall call, Context context) {
         int uid = Binder.getCallingUid();
         try {
@@ -649,15 +657,18 @@ class XCore {
         };
 
         // LoadedApk.makeApplication(Inner) of Android 11 and later gives the context to the network security config
-        // right before Instrumentation.newApplication makes the application, so a hook there returns before the code of
-        // the app runs. In a hook of newApplication the constructor, static initializer and attachBaseContext of the
-        // app's Application run inside the hook, with its frames (eu.faircode.xlua.ModernBackend) on their stack.
+        // right before Instrumentation.newApplication makes the application, so the hooks are installed by a hook there
+        // which returns before the code of the app runs. Seen to fire on API 30, 31, 35 and 36 under LSPosed 2.2.1; the
+        // boot images of 31 and 36 call it through its entry point, as it has 90 to 92 code units, over the 32 which ART
+        // inlines. Android 17 calls it through a new private method of LoadedApk, and has the class in Conscrypt, with the
+        // same name and signature. newApplication is hooked too, so a hook here which is installed but never fires does
+        // not leave the app without any hook: the first of the two which fires installs the hooks. The constructor,
+        // static initializer and attachBaseContext of the app's Application run inside the hook of newApplication, also
+        // when it does nothing, though its frames do not show in their stack traces under LSPosed 2.2.1 (API 31 and 36).
         // https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android16-release/core/java/android/app/LoadedApk.java
-        // shortcut: this hook was not yet seen to fire on a device (Android 11 to 17), and one which is installed but never
-        // fires leaves the app without any hook and without an error; the boot image cannot inline the call into
-        // makeApplication(Inner) under Vector, which deoptimizes those methods in every process (VectorInlinedCallers.kt
-        // on Vector master; the installed LSPosed 2.2.1 was not read); fall back to newApplication when a probe on a
-        // device shows it does not fire
+        // shortcut: not seen to fire under Vector (which deoptimizes makeApplication(Inner) in every process,
+        // VectorInlinedCallers.kt) or on Android 17, and whether Vector shows the frames of the hook of newApplication was
+        // not seen either; probe both on such a device
         try {
             Class<?> clsConfig = XResolver.resolveClass("android.security.net.config.NetworkSecurityConfigProvider", classLoader);
             // The hooks are installed when it returned, so the network security config is made without them, like before
@@ -667,16 +678,17 @@ class XCore {
                     callback.before(call);
                 }
             });
-            return;
         } catch (ClassNotFoundException | NoSuchMethodException ignored) {
         } catch (Throwable ex) {
-            // Hooked like before Android 11, else the app would run without any hook
+            // Logged; the hook of newApplication below installs the hooks then, else the app would run without any hook
             log(ex);
         }
 
         // shortcut: Android 9 and 10 call nothing between createAppContext and newApplication, so with the modern API
-        // the Application is made inside the hook; hook the end of createAppContext if that matters
-        // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions
+        // the Application is made inside the hook, though its frames do not show in the Application's stack traces under
+        // LSPosed 2.2.1 (API 31 and 36, with only this hook installing); hook the end of createAppContext if that matters
+        // Instrumentation.newApplication is called by LoadedApk.makeApplication(Inner) on all versions; on Android 11 and
+        // later it does nothing once the hook of handleNewApplication fired
         // https://android.googlesource.com/platform/frameworks/base/+/169aeafb2d97b810ae123ad036d0c58336961c55%5E%21/#F1
         Class<?> clsInstrumentation = XResolver.resolveClass("android.app.Instrumentation", classLoader);
         backend.hookAll(clsInstrumentation, "newApplication", callback);

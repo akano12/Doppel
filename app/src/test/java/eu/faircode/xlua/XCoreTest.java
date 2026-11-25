@@ -214,13 +214,22 @@ public class XCoreTest {
         XCore.release();
     }
 
-    // The application is made after the hook of Android 11 and later returned, so the constructor, static initializer
-    // and attachBaseContext of the app do not run inside a hook; before Android 11 newApplication is hooked
+    // The hooks are installed by the hook of Android 11 and later, which returns before the application is made;
+    // newApplication is hooked too, which installs them before Android 11 and when the hook of Android 11 does not fire
     @Test
     public void applicationIsMadeOutsideTheHook() throws Throwable {
+        List<Context> fetched = new ArrayList<>();
+        XCore.fetcher = (c, p, u) -> {
+            fetched.add(c);
+            return null;
+        };
         core.hookApplication("test.app", getClass().getClassLoader());
-        assertEquals(Collections.singletonList(
-                NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class)), members);
+        assertEquals(NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class),
+                members.get(0));
+        assertTrue(members.size() > 1);
+        for (Member member : members.subList(1, members.size()))
+            assertEquals("newApplication", member.getName());
+        int hooks = members.size();
 
         // Installed when the network security config was made, with the context of the application, and the claim
         // released before
@@ -230,6 +239,31 @@ public class XCoreTest {
         assertEquals("test", System.getProperty("eu.faircode.xlua.engine"));
         callbacks.get(0).after(made);
         assertNull(System.getProperty("eu.faircode.xlua.engine"));
+        assertEquals(Collections.singletonList(context), fetched);
+
+        // newApplication then does nothing: no release, no install, no log
+        int installed = members.size();
+        int logs = logged.size();
+        assertTrue(XCore.claim(backend("test")));
+        XCall application = new XCall(members.get(1), null, new Object[]{null, "test.App", context});
+        callbacks.get(1).before(application);
+        callbacks.get(1).after(application);
+        assertEquals("test", System.getProperty("eu.faircode.xlua.engine"));
+        assertEquals(1, fetched.size());
+        assertEquals(installed, members.size());
+        assertEquals(logs, logged.size());
+        XCore.release();
+
+        // Without the hook of Android 11 firing, newApplication installs them
+        members.clear();
+        callbacks.clear();
+        fetched.clear();
+        core.hookApplication("test.app", getClass().getClassLoader());
+        assertEquals(hooks, members.size());
+        assertTrue(XCore.claim(backend("test")));
+        callbacks.get(1).before(new XCall(members.get(1), null, new Object[]{null, "test.App", context}));
+        assertNull(System.getProperty("eu.faircode.xlua.engine"));
+        assertEquals(Collections.singletonList(context), fetched);
 
         members.clear();
         core.hookApplication("test.app", new ClassLoader(getClass().getClassLoader()) {
@@ -2072,9 +2106,11 @@ public class XCoreTest {
             entry.handleLoadPackage(loaded("test.app", false));
             assertTrue(XposedBridge.hookedMembers.isEmpty());
             entry.handleLoadPackage(loaded("test.app", true));
-            assertEquals(Collections.singletonList(
-                    NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class)),
-                    XposedBridge.hookedMembers);
+            assertEquals(NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class),
+                    XposedBridge.hookedMembers.get(0));
+            assertTrue(XposedBridge.hookedMembers.size() > 1);
+            for (Member member : XposedBridge.hookedMembers.subList(1, XposedBridge.hookedMembers.size()))
+                assertEquals("newApplication", member.getName());
         } finally {
             modern.set(null, before);
             inSystemServer(false);
