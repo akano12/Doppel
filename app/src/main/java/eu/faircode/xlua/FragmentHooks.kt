@@ -94,7 +94,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
@@ -426,16 +425,12 @@ private fun HooksScreen(
     onOpen: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val resources = LocalResources.current
     val density = LocalDensity.current
     val keyboard = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val largeText = density.fontScale > 1.3f
-    val navSpace = with(density) {
-        (resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
-                resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
-    }
+    val navSpace = rememberNavSpace()
 
     var query by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }

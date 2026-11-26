@@ -85,7 +85,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -603,16 +602,12 @@ private fun SettingsScreen(
     onIcon: (Int) -> Unit,
     onBlack: (Boolean) -> Unit
 ) {
-    val resources = LocalResources.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val largeText = density.fontScale > 1.3f
     val scroll = rememberScrollState()
     val workingLabel = stringResource(R.string.title_working)
-    val navSpace = with(density) {
-        (resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
-                resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
-    }
+    val navSpace = rememberNavSpace()
     val dark = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
 

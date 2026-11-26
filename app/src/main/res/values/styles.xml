@@ -153,11 +153,6 @@
         <item name="fontFamily">@font/plex_sans_title</item>
     </style>
 
-    <!-- Screen title of the top level screens -->
-    <style name="XLua.Text.ScreenTitle" parent="XLua.TextAppearance.HeadlineMedium">
-        <item name="android:textColor">?attr/colorOnSurface</item>
-    </style>
-
     <!-- Uppercase caption above a group of rows -->
     <style name="XLua.Text.Section" parent="XLua.TextAppearance.LabelMedium">
         <item name="android:textColor">?attr/colorPrimary</item>

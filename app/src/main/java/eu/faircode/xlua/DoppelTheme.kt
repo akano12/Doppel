@@ -33,8 +33,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // Colors, fonts and text styles of the views, which the Compose screens use too:
@@ -74,6 +78,16 @@ private fun resolveColor(context: Context, @AttrRes attr: Int): Color {
 internal fun themeColor(@AttrRes attr: Int): Color {
     val context = LocalContext.current
     return remember(context, attr) { resolveColor(context, attr) }
+}
+
+@Composable
+internal fun rememberNavSpace(): Dp {
+    val resources = LocalResources.current
+    val density = LocalDensity.current
+    return with(density) {
+        (resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
+                resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
+    }
 }
 
 @Composable

@@ -203,7 +203,6 @@
     </plurals>
     <string name="title_no_calls">No restricted call yet</string>
     <string name="title_off">Off</string>
-    <string name="title_sort">Sort</string>
     <string name="title_sorted_by">Sort, %1$s</string>
     <string name="sort_name">By name</string>
     <string name="sort_recent">By recent activity</string>

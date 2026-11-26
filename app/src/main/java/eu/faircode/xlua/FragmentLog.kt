@@ -448,10 +448,7 @@ private fun LogScreen(
         }
     }
 
-    val navSpace = with(density) {
-        (resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
-                resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
-    }
+    val navSpace = rememberNavSpace()
 
     Box(
         Modifier
