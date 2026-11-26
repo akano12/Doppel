@@ -1,6 +1,11 @@
 [versions]
 agp = "9.5.2"
+# Kotlin is built into AGP 9, which compiles with the Kotlin Gradle plugin of the build classpath;
+# Glide 5 ships Kotlin 2.4 metadata, which the 2.2.10 plugin of AGP cannot read
+kotlin = "2.4.21"
 appcompat = "1.8.0"
+# Compose 1.10 is the last line which compiles against this project's compileSdk 37.0
+composeBom = "2026.03.01"
 core = "1.19.1"
 splashscreen = "1.2.0"
 glide = "5.0.10"
@@ -16,6 +21,10 @@ xposed = "82"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-core = { module = "androidx.core:core", version.ref = "core" }
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
@@ -32,3 +41,6 @@ xposed-api = { module = "de.robv.android.xposed:api", version.ref = "xposed" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# Not applied: only puts the Kotlin Gradle plugin on the build classpath, for built-in Kotlin
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

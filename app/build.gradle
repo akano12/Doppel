@@ -2,6 +2,8 @@ import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.android.application)
+    // AGP 9 compiles Kotlin itself; the Compose compiler is a Kotlin plugin of the same version
+    alias(libs.plugins.compose.compiler)
 }
 
 // The hook definition repository (repo/) is packaged as assets/repo, to browse and install definitions offline
@@ -86,6 +88,13 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
+    }
+
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
     }
 
     // No dependency list encrypted for Google Play in the signing block of the APK: only Play can read it
@@ -134,6 +143,11 @@ android {
 }
 
 dependencies {
+    implementation platform(libs.compose.bom)
+    implementation libs.androidx.compose.ui
+    implementation libs.androidx.compose.foundation
+    implementation libs.androidx.compose.material3
+
     implementation libs.androidx.appcompat
     implementation libs.androidx.core
     implementation libs.androidx.core.splashscreen
