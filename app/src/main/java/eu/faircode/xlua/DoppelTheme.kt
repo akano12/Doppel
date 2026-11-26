@@ -21,25 +21,50 @@ package eu.faircode.xlua
 
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.util.TypedValue
 import androidx.annotation.AttrRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DecodeFormat
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.request.RequestOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 // Colors, fonts and text styles of the views, which the Compose screens use too:
 // the palette and the black background are overlays of the theme, see ApplicationEx.applyPalette
@@ -87,6 +112,63 @@ internal fun rememberNavSpace(): Dp {
     return with(density) {
         (resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
                 resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
+    }
+}
+
+// The icon of an app, loaded like Ui.loadIcon loads it for the views
+@Composable
+internal fun AppIcon(packageName: String, icon: Int, size: Dp) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val pixels = with(density) { 48.dp.roundToPx() }
+    val bitmap by produceState<Bitmap?>(null, packageName, icon) {
+        value = withContext(Dispatchers.IO) {
+            if (icon <= 0) null else runCatching {
+                Glide.with(context.applicationContext)
+                    .asBitmap()
+                    .apply(RequestOptions().format(DecodeFormat.PREFER_RGB_565))
+                    .load("android.resource://$packageName/$icon")
+                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+                    .override(pixels, pixels)
+                    .submit()
+                    .get()
+            }.getOrNull()
+        }
+    }
+    val current = bitmap
+    Box(
+        Modifier
+            .size(size)
+            .clearAndSetSemantics {}
+    ) {
+        if (current == null)
+            Icon(painterResource(android.R.drawable.sym_def_app_icon), null, Modifier.fillMaxSize())
+        else
+            Image(current.asImageBitmap(), null, Modifier.fillMaxSize())
+    }
+}
+
+// A small rounded label of an app, like its uid or that it is a system app; see Ui.addBadge
+@Composable
+internal fun AppBadge(text: String, description: String? = null) {
+    Box(Modifier.padding(end = 6.dp)) {
+        Text(
+            text,
+            Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .then(
+                    if (description == null) Modifier
+                    else Modifier.clearAndSetSemantics { contentDescription = description }
+                )
+                .padding(horizontal = 7.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = Mono
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

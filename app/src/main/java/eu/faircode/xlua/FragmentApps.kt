@@ -35,7 +35,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -86,7 +85,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -96,7 +94,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -126,14 +123,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DecodeFormat
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.request.RequestOptions
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.HashSet
 import java.util.Locale
 
@@ -1140,30 +1131,6 @@ private fun AppRow(
     }
 }
 
-// A badge wider than the row, like with a large font, shows where it is cut off; see Ui.addBadge
-@Composable
-private fun AppBadge(text: String, description: String? = null) {
-    Box(Modifier.padding(end = 6.dp)) {
-        Text(
-            text,
-            Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .then(
-                    if (description == null) Modifier
-                    else Modifier.clearAndSetSemantics { contentDescription = description }
-                )
-                .padding(horizontal = 7.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = Mono
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
 // How much of the app is restricted: all groups on the secondary color, some on the warning color, none in grey;
 // screen readers get the words, and tapping it shows the groups of the app, see GroupsSheet
 @Composable
@@ -1215,39 +1182,6 @@ private fun CoveragePill(
                 )
             )
         }
-    }
-}
-
-// The icon of an app, loaded like Ui.loadIcon loads it for the views
-@Composable
-private fun AppIcon(packageName: String, icon: Int, size: Dp) {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val pixels = with(density) { 48.dp.roundToPx() }
-    val bitmap by produceState<android.graphics.Bitmap?>(null, packageName, icon) {
-        value = withContext(Dispatchers.IO) {
-            if (icon <= 0) null else runCatching {
-                Glide.with(context.applicationContext)
-                    .asBitmap()
-                    .apply(RequestOptions().format(DecodeFormat.PREFER_RGB_565))
-                    .load("android.resource://$packageName/$icon")
-                    .diskCacheStrategy(DiskCacheStrategy.NONE)
-                    .override(pixels, pixels)
-                    .submit()
-                    .get()
-            }.getOrNull()
-        }
-    }
-    val current = bitmap
-    Box(
-        Modifier
-            .size(size)
-            .clearAndSetSemantics {}
-    ) {
-        if (current == null)
-            Icon(painterResource(android.R.drawable.sym_def_app_icon), null, Modifier.fillMaxSize())
-        else
-            Image(current.asImageBitmap(), null, Modifier.fillMaxSize())
     }
 }
 

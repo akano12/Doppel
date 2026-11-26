@@ -259,15 +259,6 @@
         <item name="android:textAppearance">@style/XLua.Text.Meta</item>
     </style>
 
-    <!-- Icon at the end of a row which opens something, an arrow unless another icon is set;
-         the rows set importantForAccessibility, which lint only sees in the layout -->
-    <style name="XLua.Row.Icon" parent="">
-        <item name="android:layout_width">18dp</item>
-        <item name="android:layout_height">18dp</item>
-        <item name="android:src">@drawable/ic_chevron_right</item>
-        <item name="tint">?attr/colorOutline</item>
-    </style>
-
     <!-- Search field above a list, with its text field -->
     <style name="XLua.Search" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
         <item name="android:layout_width">match_parent</item>
