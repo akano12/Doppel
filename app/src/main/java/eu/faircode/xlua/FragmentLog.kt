@@ -23,7 +23,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.icu.text.RelativeDateTimeFormatter
-import android.net.Uri
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.LayoutInflater
@@ -93,6 +92,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -103,6 +104,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
@@ -122,6 +124,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -389,6 +392,7 @@ private fun LogScreen(
     onRefresh: () -> Unit
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -396,8 +400,9 @@ private fun LogScreen(
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
     val largeText = density.fontScale > 1.3f
-    val showOverview = remember(configuration) { context.resources.getBoolean(R.bool.show_overview) }
+    val showOverview = remember(configuration) { resources.getBoolean(R.bool.show_overview) }
     val title = if (only == null) stringResource(R.string.nav_activity) else (label ?: "")
+    val loadingLabel = stringResource(R.string.title_loading)
 
     val data = remember(state.entries, state.errors, state.filter, state.query, only) {
         buildScreenData(context, only, state.entries, state.errors, state.filter, state.query)
@@ -444,8 +449,8 @@ private fun LogScreen(
     }
 
     val navSpace = with(density) {
-        (context.resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
-                context.resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
+        (resources.getDimensionPixelSize(R.dimen.nav_floating_height) +
+                resources.getDimensionPixelSize(R.dimen.nav_floating_margin)).toDp()
     }
 
     Box(
@@ -542,7 +547,7 @@ private fun LogScreen(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .semantics {
-                        contentDescription = context.getString(R.string.title_loading)
+                        contentDescription = loadingLabel
                         liveRegion = LiveRegionMode.Polite
                     }
             )
@@ -1022,7 +1027,7 @@ private fun LogRow(
                 val group = entry.group?.let { Groups.getTitle(context, it) }
                 val what = if (exception != null) {
                     val line = exception.trim().split("\n", limit = 2)[0]
-                    context.getString(R.string.title_hook_failed, line)
+                    stringResource(R.string.title_hook_failed, line)
                 } else group ?: entry.hook
                 Row(
                     Modifier
@@ -1110,7 +1115,35 @@ private fun ValueLine(
 ) {
     // The two values share the room which is left after the arrow and the expand button, like ValueLine for the views
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val cap = ((maxWidth - 48.dp - 12.dp) / 2).coerceAtLeast(0.dp)
+        val density = LocalDensity.current
+        val measurer = rememberTextMeasurer()
+        val oldStyle = monoStrike()
+        val newStyle = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = Mono,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+        val arrowStyle = MaterialTheme.typography.bodySmall.copy(
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        val arrow = stringResource(R.string.title_value_arrow)
+        val oldNatural = measurer.measure(
+            AnnotatedString(oldValue), oldStyle, maxLines = 1, softWrap = false
+        ).size.width
+        // The padding of the pill is part of the width which its text needs
+        val newNatural = measurer.measure(
+            AnnotatedString(newValue), newStyle, maxLines = 1, softWrap = false
+        ).size.width + with(density) { 14.dp.roundToPx() }
+        // The arrow is reserved with its margins, the button also while it is hidden, like ValueLine did
+        val arrowWidth = measurer.measure(
+            AnnotatedString(arrow), arrowStyle, maxLines = 1, softWrap = false
+        ).size.width + with(density) { 12.dp.roundToPx() }
+        val room = with(density) { maxWidth.roundToPx() } - arrowWidth -
+                with(density) { 48.dp.roundToPx() }
+        val caps = share(room, oldNatural, newNatural)
+        val oldCap = if (caps[0] == Int.MAX_VALUE) Dp.Unspecified
+        else with(density) { caps[0].toDp() }
+        val newCap = if (caps[1] == Int.MAX_VALUE) Dp.Unspecified
+        else with(density) { caps[1].toDp() }
         val real = stringResource(R.string.title_real_value, oldValue)
         val fake = stringResource(R.string.title_fake_value, newValue)
         Row(
@@ -1122,25 +1155,23 @@ private fun ValueLine(
             Text(
                 text = oldValue,
                 modifier = Modifier
-                    .widthIn(max = cap)
+                    .widthIn(max = oldCap)
                     .semantics { contentDescription = real },
-                style = monoStrike(),
+                style = oldStyle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 onTextLayout = onLayout
             )
             Text(
-                text = stringResource(R.string.title_value_arrow),
+                text = arrow,
                 modifier = Modifier
                     .padding(horizontal = 6.dp)
                     .clearAndSetSemantics {},
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                style = arrowStyle
             )
             ValuePill(
                 newValue,
-                modifier = Modifier.widthIn(max = cap),
+                modifier = Modifier.widthIn(max = newCap),
                 onLayout = onLayout,
                 description = fake
             )
@@ -1162,6 +1193,19 @@ private fun ValueLine(
                 ExpandButton(full = false, onToggle = onToggle)
         }
     }
+}
+
+// Each value gets what it needs, or half of the room when both need more, like ValueLine.share did
+internal fun share(room: Int, old: Int, new: Int): IntArray {
+    val space = room.coerceAtLeast(0)
+    if (old + new <= space)
+        return intArrayOf(Int.MAX_VALUE, Int.MAX_VALUE)
+    val half = space / 2
+    if (old <= half)
+        return intArrayOf(old, space - old)
+    if (new <= half)
+        return intArrayOf(space - new, new)
+    return intArrayOf(half, space - half)
 }
 
 @Composable
@@ -1251,7 +1295,7 @@ private fun AppIcon(
                 Glide.with(context.applicationContext)
                     .asBitmap()
                     .apply(RequestOptions().format(DecodeFormat.PREFER_RGB_565))
-                    .load(Uri.parse("android.resource://" + packageName + "/" + icon))
+                    .load("android.resource://$packageName/$icon".toUri())
                     .diskCacheStrategy(DiskCacheStrategy.NONE)
                     .override(px, px)
                     .submit()
