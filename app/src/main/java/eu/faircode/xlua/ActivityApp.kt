@@ -980,8 +980,14 @@ private fun AppBar(
                     state.toggled = emptySet()
                 },
                 modifier = Modifier
-                                    .weight(1f)
-                .focusRequester(focusRequester),
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                placeholder = {
+                    Text(
+                        stringResource(R.string.title_search_log_app),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
                 leadingIcon = {
                     Icon(painterResource(R.drawable.ic_search), contentDescription = null)
                 },
