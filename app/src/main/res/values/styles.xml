@@ -201,21 +201,6 @@
         <item name="android:background">@drawable/bg_pill</item>
     </style>
 
-    <!-- State word with an icon in front, like Installed in Downloads; the icon is set from code -->
-    <style name="XLua.StatusChip" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">28dp</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:paddingStart">8dp</item>
-        <item name="android:paddingEnd">10dp</item>
-        <item name="android:drawablePadding">5dp</item>
-        <item name="android:textSize">12sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:fontFamily">@font/plex_sans_title</item>
-        <item name="fontFamily">@font/plex_sans_title</item>
-        <item name="android:background">@drawable/bg_pill</item>
-    </style>
-
     <!-- Caption above a card -->
     <style name="XLua.SectionTitle" parent="">
         <item name="android:layout_width">wrap_content</item>
@@ -293,15 +278,6 @@
         <!-- Screen readers tell when a list starts to load -->
         <item name="android:contentDescription">@string/title_loading</item>
         <item name="android:accessibilityLiveRegion">polite</item>
-    </style>
-
-    <!-- Why a list is empty, in the middle of it, shown by the screen -->
-    <style name="XLua.Empty" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:gravity">center</item>
-        <item name="android:padding">32dp</item>
-        <item name="android:textAppearance">@style/XLua.Text.Meta</item>
     </style>
 
     <!-- Text fields of forms -->
