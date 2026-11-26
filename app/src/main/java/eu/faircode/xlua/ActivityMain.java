@@ -167,10 +167,6 @@ public class ActivityMain extends ActivityBase implements Ui.Anchored {
         if (view instanceof RecyclerView || view instanceof NestedScrollView) {
             view.setPadding(view.getPaddingLeft(), view.getPaddingTop(), view.getPaddingRight(), view.getPaddingBottom() + space);
             ((ViewGroup) view).setClipToPadding(false);
-        } else if (view.getId() == R.id.fabAdd) {
-            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
-            lp.bottomMargin += space;
-            view.setLayoutParams(lp);
         } else if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++)
