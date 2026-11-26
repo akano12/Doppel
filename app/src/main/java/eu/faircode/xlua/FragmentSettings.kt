@@ -611,7 +611,7 @@ private fun SettingsScreen(
     val dark = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
 
-    // The header scrolls away; the compact bar fades in over the last part of it, see CompactBar
+    // The header scrolls away; the compact bar fades in over the last part of it, see SettingsCompactBar
     var headerHeight by remember { mutableIntStateOf(0) }
     val compactAlpha by remember {
         derivedStateOf {

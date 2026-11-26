@@ -26,7 +26,7 @@ import androidx.core.widget.NestedScrollView;
 import com.google.android.material.appbar.MaterialToolbar;
 
 // The toolbar of a screen with a summary of its top as its subtitle while that is scrolled away, like the compact bar
-// of the tabs (CompactBar)
+// of the Compose tabs
 final class ToolbarSummary {
     private final MaterialToolbar toolbar;
     private CharSequence summary = null;

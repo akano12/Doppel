@@ -435,7 +435,7 @@ private fun LogScreen(
         wasOpen = state.queryOpen
     }
 
-    // The header scrolls away; the compact bar fades in over the last part of it, see CompactBar
+    // The header scrolls away; the compact bar fades in over the last part of it, see LogCompactBar
     var headerHeight by remember { mutableIntStateOf(0) }
     val compactAlpha by remember {
         derivedStateOf {
@@ -1110,7 +1110,7 @@ private fun ValueLine(
     onToggle: () -> Unit,
     onLayout: (TextLayoutResult) -> Unit
 ) {
-    // The two values share the room which is left after the arrow and the expand button, like ValueLine for the views
+    // The two values share the room which is left after the arrow and the expand button
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val density = LocalDensity.current
         val measurer = rememberTextMeasurer()
@@ -1130,7 +1130,7 @@ private fun ValueLine(
         val newNatural = measurer.measure(
             AnnotatedString(newValue), newStyle, maxLines = 1, softWrap = false
         ).size.width + with(density) { 14.dp.roundToPx() }
-        // The arrow is reserved with its margins, the button also while it is hidden, like ValueLine did
+        // The arrow is reserved with its margins, the button also while it is hidden
         val arrowWidth = measurer.measure(
             AnnotatedString(arrow), arrowStyle, maxLines = 1, softWrap = false
         ).size.width + with(density) { 12.dp.roundToPx() }
@@ -1192,7 +1192,7 @@ private fun ValueLine(
     }
 }
 
-// Each value gets what it needs, or half of the room when both need more, like ValueLine.share did
+// Each value gets what it needs, or half of the room when both need more
 internal fun share(room: Int, old: Int, new: Int): IntArray {
     val space = room.coerceAtLeast(0)
     if (old + new <= space)

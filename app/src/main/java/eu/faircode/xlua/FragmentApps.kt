@@ -594,7 +594,7 @@ private fun AppsScreen(
         wasOpen = state.searchOpen
     }
 
-    // The header scrolls away; the compact bar fades in over the last part of it, see CompactBar
+    // The header scrolls away; the compact bar fades in over the last part of it, see AppsCompactBar
     var headerHeight by remember { mutableIntStateOf(0) }
     val compactAlpha by remember {
         derivedStateOf {

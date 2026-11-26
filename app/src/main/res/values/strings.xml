@@ -237,8 +237,8 @@
     <string name="menu_search">Search</string>
     <string name="title_close_search">Close search</string>
     <string name="title_clear_search">Clear search</string>
-    <!-- The compact bar of a tab, while its header is scrolled away, see CompactBar: the filter of the chips
-         as a button, like Filter: User, and a summary of the header -->
+    <!-- The compact bar of a tab, while its header is scrolled away, as in FragmentLog and the other Compose tabs:
+         the filter of the chips as a button, like Filter: User, and a summary of the header -->
     <string name="title_filter">Filter</string>
     <string name="title_filter_by">Filter: %1$s</string>
     <!-- The same words for any count in English -->

@@ -160,13 +160,6 @@
         <item name="android:letterSpacing">0.08</item>
     </style>
 
-    <!-- Package names, class names, values -->
-    <style name="XLua.Text.Mono" parent="TextAppearance.Material3.BodySmall">
-        <item name="android:fontFamily">@font/plex_mono</item>
-        <item name="fontFamily">@font/plex_mono</item>
-        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-    </style>
-
     <style name="XLua.Text.Meta" parent="XLua.TextAppearance.BodySmall">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
@@ -211,39 +204,6 @@
         <item name="android:textAppearance">@style/XLua.Text.Section</item>
     </style>
 
-    <!-- Row of a settings card -->
-    <style name="XLua.Row" parent="">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:background">?attr/selectableItemBackground</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:minHeight">56dp</item>
-        <item name="android:orientation">horizontal</item>
-        <item name="android:paddingStart">16dp</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingEnd">12dp</item>
-        <item name="android:paddingBottom">8dp</item>
-    </style>
-
-    <style name="XLua.Row.Text" parent="">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:orientation">vertical</item>
-    </style>
-
-    <style name="XLua.Row.Title" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
-    </style>
-
-    <style name="XLua.Row.Subtitle" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textAppearance">@style/XLua.Text.Meta</item>
-    </style>
-
     <!-- Search field above a list, with its text field -->
     <style name="XLua.Search" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
         <item name="android:layout_width">match_parent</item>
@@ -278,16 +238,6 @@
         <!-- Screen readers tell when a list starts to load -->
         <item name="android:contentDescription">@string/title_loading</item>
         <item name="android:accessibilityLiveRegion">polite</item>
-    </style>
-
-    <!-- Text fields of forms -->
-    <style name="XLua.Field" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense">
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">10dp</item>
-        <item name="boxCornerRadiusBottomEnd">12dp</item>
-        <item name="boxCornerRadiusBottomStart">12dp</item>
-        <item name="boxCornerRadiusTopEnd">12dp</item>
-        <item name="boxCornerRadiusTopStart">12dp</item>
     </style>
 
     <!-- A fake value in its open row, see ActivityValues: filled, without an outline -->
@@ -335,15 +285,6 @@
         <item name="elevation">0dp</item>
     </style>
 
-    <style name="XLua.Field.Dropdown" parent="Widget.Material3.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">10dp</item>
-        <item name="boxCornerRadiusBottomEnd">12dp</item>
-        <item name="boxCornerRadiusBottomStart">12dp</item>
-        <item name="boxCornerRadiusTopEnd">12dp</item>
-        <item name="boxCornerRadiusTopStart">12dp</item>
-    </style>
-
     <style name="XLua.Field.Edit" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -360,21 +301,6 @@
         <item name="android:paddingBottom">14dp</item>
         <item name="android:paddingStart">16dp</item>
         <item name="android:gravity">center_vertical|start</item>
-    </style>
-
-    <!-- Warning above content, like changes which require a restart -->
-    <style name="XLua.Banner" parent="">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">12dp</item>
-        <item name="android:background">@drawable/bg_rounded</item>
-        <item name="android:backgroundTint">?attr/colorWarningContainer</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:orientation">horizontal</item>
-        <item name="android:paddingStart">14dp</item>
-        <item name="android:paddingTop">10dp</item>
-        <item name="android:paddingEnd">10dp</item>
-        <item name="android:paddingBottom">10dp</item>
     </style>
 
     <!-- Filter chips above lists -->
