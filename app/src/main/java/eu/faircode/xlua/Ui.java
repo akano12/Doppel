@@ -25,8 +25,6 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.text.Html;
 import android.text.TextUtils;
@@ -36,9 +34,7 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -52,8 +48,6 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
-import com.google.android.material.chip.Chip;
-import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.snackbar.Snackbar;
@@ -64,7 +58,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -169,17 +162,6 @@ final class Ui {
         return ColorStateList.valueOf(color(context, attr));
     }
 
-    // Rows which form one block, like a card: the first row has the top corners rounded, the last the bottom ones
-    static void join(View view, int color, int radiusDp, boolean first, boolean last) {
-        float radius = dp(view.getContext(), radiusDp);
-        float top = (first ? radius : 0);
-        float bottom = (last ? radius : 0);
-        GradientDrawable shape = new GradientDrawable();
-        shape.setColor(color);
-        shape.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
-        view.setBackground(shape);
-    }
-
     // A partially restricted group, or all groups partially restricted,
     // has a dash in the switch and a lighter track; track is the one of the switch when fully restricted
     static void setPartial(MaterialSwitch sw, ColorStateList track, boolean partial) {
@@ -188,61 +170,6 @@ final class Ui {
         sw.setTrackTintList(partial
                 ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(color(context, androidx.appcompat.R.attr.colorPrimary), 0x80))
                 : track);
-    }
-
-    // A row of a block with the hairline above it, which the first row has not
-    static void joinRow(View row, View divider, int color, boolean first, boolean last) {
-        join(row, color, 20, first, last);
-        divider.setVisibility(first ? View.GONE : View.VISIBLE);
-        divider.setBackgroundColor(dividerColor(row.getContext(), color));
-    }
-
-    // The hairline between the rows of a block, a shade of their background
-    static int dividerColor(Context context, int background) {
-        return ColorUtils.blendARGB(background, color(context, com.google.android.material.R.attr.colorOnSurface), 0.08f);
-    }
-
-    // A filter chip with its count, like Custom · 3
-    static void setChipCount(ChipGroup group, int chipId, @StringRes int title, int count) {
-        Context context = group.getContext();
-        Chip chip = group.findViewById(chipId);
-        chip.setText(context.getString(R.string.title_count, context.getString(title), count));
-    }
-
-    // Enables or disables the children, like the chips of a group
-    static void enable(ViewGroup group, boolean enabled) {
-        for (int i = 0; i < group.getChildCount(); i++)
-            group.getChildAt(i).setEnabled(enabled);
-    }
-
-    // Rounded label, like 'built-in' or 'system'
-    static TextView addBadge(ViewGroup parent, String text, Badge style) {
-        Context context = parent.getContext();
-        TextView badge = (TextView) LayoutInflater.from(context).inflate(R.layout.badge, parent, false);
-        badge.setText(text);
-        badge.setTextColor(color(context, style.text));
-        GradientDrawable background = new GradientDrawable();
-        background.setCornerRadius(dp(context, 6));
-        background.setColor(color(context, style.background));
-        badge.setBackground(background);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMarginEnd(dp(context, 6));
-        parent.addView(badge, lp);
-        return badge;
-    }
-
-    // Icon in front of the text of a label, in the size of the text instead of the 24 dp of the drawable
-    static void setStartIcon(TextView tv, int drawable, int sizeDp, int color) {
-        Context context = tv.getContext();
-        Drawable icon = AppCompatResources.getDrawable(context, drawable);
-        if (icon != null) {
-            icon = icon.mutate();
-            int size = dp(context, sizeDp);
-            icon.setBounds(0, 0, size, size);
-            icon.setTint(color);
-        }
-        tv.setCompoundDrawablesRelative(icon, null, null, null);
     }
 
     static void loadIcon(ImageView iv, String packageName, int icon) {
@@ -466,18 +393,6 @@ final class Ui {
         boolean has(Query query) {
             return (root.contains(query.root) || local.contains(query.local));
         }
-    }
-
-    // Filter chips with one chip id per value, in the same order; selects a value and reports selections
-    static <E> void chips(ChipGroup group, int[] ids, E[] values, E selected, Consumer<E> listener) {
-        group.check(ids[Arrays.asList(values).indexOf(selected)]);
-        group.setOnCheckedStateChangeListener((g, checkedIds) -> {
-            if (checkedIds.isEmpty())
-                return;
-            for (int i = 0; i < ids.length; i++)
-                if (ids[i] == checkedIds.get(0))
-                    listener.accept(values[i]);
-        });
     }
 
     // Names below a question, each on a line of its own

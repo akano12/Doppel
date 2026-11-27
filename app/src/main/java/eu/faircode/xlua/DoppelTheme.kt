@@ -148,7 +148,7 @@ internal fun AppIcon(packageName: String, icon: Int, size: Dp) {
     }
 }
 
-// A small rounded label of an app, like its uid or that it is a system app; see Ui.addBadge
+// A small rounded label of an app, like its uid or that it is a system app
 @Composable
 internal fun AppBadge(text: String, description: String? = null) {
     Box(Modifier.padding(end = 6.dp)) {

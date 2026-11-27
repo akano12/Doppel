@@ -153,45 +153,8 @@
         <item name="fontFamily">@font/plex_sans_title</item>
     </style>
 
-    <!-- Uppercase caption above a group of rows -->
-    <style name="XLua.Text.Section" parent="XLua.TextAppearance.LabelMedium">
-        <item name="android:textColor">?attr/colorPrimary</item>
-        <item name="android:textAllCaps">true</item>
-        <item name="android:letterSpacing">0.08</item>
-    </style>
-
     <style name="XLua.Text.Meta" parent="XLua.TextAppearance.BodySmall">
         <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-    </style>
-
-    <!-- Small rounded label, the background is set from code -->
-    <style name="XLua.Badge" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:paddingStart">7dp</item>
-        <item name="android:paddingEnd">7dp</item>
-        <item name="android:paddingTop">2dp</item>
-        <item name="android:paddingBottom">2dp</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:fontFamily">@font/plex_mono</item>
-    </style>
-
-    <!-- Count at the end of a row, like 29/29; the colors are set from code -->
-    <style name="XLua.Pill" parent="">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:minHeight">26dp</item>
-        <item name="android:gravity">center</item>
-        <item name="android:paddingTop">2dp</item>
-        <item name="android:paddingBottom">2dp</item>
-        <item name="android:paddingStart">10dp</item>
-        <item name="android:paddingEnd">10dp</item>
-        <item name="android:textSize">12sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:fontFamily">@font/plex_sans_title</item>
-        <item name="fontFamily">@font/plex_sans_title</item>
-        <item name="android:fontFeatureSettings">tnum</item>
-        <item name="android:background">@drawable/bg_pill</item>
     </style>
 
 </resources>

@@ -251,25 +251,6 @@ final class GroupsSheet {
         return bySection;
     }
 
-    // The count of a section and its button for all or none of its groups; also for the screen of the app
-    static void bindSection(Context context, View vSection, int restricted, int total, boolean complete) {
-        ((TextView) vSection.findViewById(R.id.tvCount)).setText(context.getString(R.string.title_of, restricted, total));
-        Button btnSection = vSection.findViewById(R.id.btnSection);
-        btnSection.setText(complete ? R.string.title_section_none : R.string.title_section_all);
-        btnSection.setContentDescription(context.getString(complete ? R.string.title_section_none_of : R.string.title_section_all_of,
-                ((TextView) vSection.findViewById(R.id.tvSection)).getText()));
-    }
-
-    // A section with its title and its button for all or none, without rows; also for the screen of the app
-    static View inflateSection(LayoutInflater inflater, ViewGroup parent, int title) {
-        View vSection = inflater.inflate(R.layout.item_section, parent, false);
-        TextView tvSection = vSection.findViewById(R.id.tvSection);
-        tvSection.setText(title);
-        ViewCompat.setAccessibilityHeading(tvSection, true);
-        vSection.findViewById(R.id.btnSection).setVisibility(View.VISIBLE);
-        return vSection;
-    }
-
     // A group row with its title, icon and description; also for the screen of the app
     static View inflateGroup(Context context, LayoutInflater inflater, ViewGroup parent, String group) {
         View vGroup = inflater.inflate(R.layout.item_group, parent, false);
