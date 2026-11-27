@@ -42,18 +42,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -796,9 +791,7 @@ private fun AppScreen(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
-            .windowInsetsPadding(
-                WindowInsets.systemBars.union(WindowInsets.displayCutout).union(WindowInsets.ime)
-            )
+            .windowInsetsPadding(screenInsets())
     ) {
         AppBar(
             state = state,
@@ -1686,9 +1679,7 @@ private fun InfoBubble(info: GroupInfo, onDismiss: () -> Unit) {
     val layoutDirection = LocalLayoutDirection.current
     // The part of the window apps can draw in, like getWindowVisibleDisplayFrame of the views, without the system bars,
     // the display cutouts and the keyboard
-    val insets = WindowInsets.systemBars
-        .union(WindowInsets.displayCutout)
-        .union(WindowInsets.ime)
+    val insets = screenInsets()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val frameWidth = with(density) { maxWidth.toPx() }
         val frameHeight = with(density) { maxHeight.toPx() }

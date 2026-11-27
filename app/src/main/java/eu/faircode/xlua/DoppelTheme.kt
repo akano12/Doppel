@@ -30,7 +30,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -164,6 +169,12 @@ internal fun AppIcon(packageName: String, icon: Int, size: Dp, modifier: Modifie
             Image(current.asImageBitmap(), null, Modifier.fillMaxSize())
     }
 }
+
+// The insets a screen keeps its content out of: the bars, the cutouts and the keyboard
+@Composable
+internal fun screenInsets(): WindowInsets = WindowInsets.systemBars
+    .union(WindowInsets.displayCutout)
+    .union(WindowInsets.ime)
 
 // The search of a screen, which replaces the title while it is shown: its icon, a way to clear it, and the keyboard
 // closed by a search, when the screen has something to do with it
