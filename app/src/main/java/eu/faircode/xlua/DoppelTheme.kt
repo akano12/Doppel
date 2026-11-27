@@ -27,12 +27,12 @@ import androidx.annotation.AttrRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
@@ -176,6 +176,17 @@ internal fun screenInsets(): WindowInsets = WindowInsets.systemBars
     .union(WindowInsets.displayCutout)
     .union(WindowInsets.ime)
 
+// Fades the compact bar in across the last 40% of the header; scrollOffset is within the first list item
+internal fun compactHeaderAlpha(
+    scrollOffset: Int,
+    headerHeight: Int,
+    pastHeader: Boolean = false
+): Float = when {
+    pastHeader -> 1f
+    headerHeight <= 0 -> 0f
+    else -> ((scrollOffset - headerHeight * 0.6f) / (headerHeight * 0.4f)).coerceIn(0f, 1f)
+}
+
 // The search of a screen, which replaces the title while it is shown: its icon, a way to clear it, and the keyboard
 // closed by a search, when the screen has something to do with it
 @Composable
@@ -298,7 +309,6 @@ internal fun AppSwitch(
 
 @Composable
 internal fun DoppelTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
     // Read as Compose state, so the theme follows a change of the night mode
     val configuration = LocalConfiguration.current
     val night = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==

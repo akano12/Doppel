@@ -419,12 +419,11 @@ private fun LogScreen(
     var headerHeight by remember { mutableIntStateOf(0) }
     val compactAlpha by remember {
         derivedStateOf {
-            when {
-                listState.firstVisibleItemIndex > 0 -> 1f
-                headerHeight <= 0 -> 0f
-                else -> ((listState.firstVisibleItemScrollOffset - headerHeight * 0.6f) /
-                        (headerHeight * 0.4f)).coerceIn(0f, 1f)
-            }
+            compactHeaderAlpha(
+                listState.firstVisibleItemScrollOffset,
+                headerHeight,
+                pastHeader = listState.firstVisibleItemIndex > 0
+            )
         }
     }
 

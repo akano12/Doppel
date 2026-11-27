@@ -614,13 +614,7 @@ private fun SettingsScreen(
     // The header scrolls away; the compact bar fades in over the last part of it, see SettingsCompactBar
     var headerHeight by remember { mutableIntStateOf(0) }
     val compactAlpha by remember {
-        derivedStateOf {
-            when {
-                headerHeight <= 0 -> 0f
-                else -> ((scroll.value - headerHeight * 0.6f) / (headerHeight * 0.4f))
-                    .coerceIn(0f, 1f)
-            }
-        }
+        derivedStateOf { compactHeaderAlpha(scroll.value, headerHeight) }
     }
 
     val status = data.statusRes?.let { stringResource(it) }
