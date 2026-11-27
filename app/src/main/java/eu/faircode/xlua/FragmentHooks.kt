@@ -20,7 +20,6 @@
 package eu.faircode.xlua
 
 import android.app.Activity
-import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -41,7 +40,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,7 +53,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,8 +63,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -103,14 +98,10 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONException
@@ -481,6 +472,12 @@ private fun HooksScreen(
     val groups = ArrayList<HookGroup>()
     var currentKey: String? = null
     var current = ArrayList<XHook>()
+    // The hooks of the group being collected, added when another group starts or at the end
+    fun flush() {
+        val key = currentKey ?: return
+        if (current.isNotEmpty())
+            groups.add(HookGroup(key, Groups.getTitle(context, key), Groups.getIcon(key), current))
+    }
     for (hook in data.hooks) {
         if (!matches(filter, hook))
             continue
@@ -492,29 +489,13 @@ private fun HooksScreen(
         )
             continue
         if (hook.group != currentKey) {
-            if (currentKey != null && current.isNotEmpty())
-                groups.add(
-                    HookGroup(
-                        currentKey,
-                        Groups.getTitle(context, currentKey),
-                        Groups.getIcon(currentKey),
-                        current
-                    )
-                )
+            flush()
             currentKey = hook.group
             current = ArrayList()
         }
         current.add(hook)
     }
-    if (currentKey != null && current.isNotEmpty())
-        groups.add(
-            HookGroup(
-                currentKey,
-                Groups.getTitle(context, currentKey),
-                Groups.getIcon(currentKey),
-                current
-            )
-        )
+    flush()
 
     val preferences = remember { ApplicationEx.getPreferences(context) }
     var open by rememberSaveable {
@@ -650,25 +631,10 @@ private fun HooksScreen(
                 onExport = onExport
             )
 
-        if (data.loading) {
-            val loadingLabel = stringResource(R.string.title_loading)
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .semantics { contentDescription = loadingLabel }
-            )
-        }
+        if (data.loading)
+            Loading(Modifier.align(Alignment.Center))
         else if (groups.isEmpty())
-            Text(
-                text = stringResource(emptyText),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                textAlign = TextAlign.Center
-            )
+            EmptyMessage(stringResource(emptyText), Modifier.align(Alignment.Center))
 
         ExtendedFloatingActionButton(
             text = { Text(stringResource(R.string.menu_add)) },
@@ -721,13 +687,13 @@ private fun HooksHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (searchOpen)
-                HookSearchField(
+                SearchField(
                     query = query,
                     hint = stringResource(R.string.title_search_hooks),
+                    onQueryChange = onQuery,
+                    modifier = Modifier.weight(1f),
                     focusRequester = focusRequester,
-                    onQuery = onQuery,
-                    onSearchAction = { keyboard?.hide() },
-                    modifier = Modifier.weight(1f)
+                    onSearch = { keyboard?.hide() }
                 )
             else
                 Column(Modifier.weight(1f)) {
@@ -793,45 +759,6 @@ private fun HooksHeader(
             }
         }
     }
-}
-
-@Composable
-private fun HookSearchField(
-    query: String,
-    hint: String,
-    focusRequester: FocusRequester,
-    onQuery: (String) -> Unit,
-    onSearchAction: () -> Unit,
-    modifier: Modifier
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQuery,
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .focusRequester(focusRequester),
-        textStyle = MaterialTheme.typography.bodyMedium,
-        singleLine = true,
-        placeholder = { Text(hint, style = MaterialTheme.typography.bodyMedium) },
-        leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
-        trailingIcon = if (query.isEmpty()) null else {
-            {
-                IconButton(onClick = { onQuery("") }) {
-                    Icon(
-                        painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.title_clear_search)
-                    )
-                }
-            }
-        },
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-        ),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearchAction() })
-    )
 }
 
 @Composable

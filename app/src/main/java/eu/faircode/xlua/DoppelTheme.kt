@@ -28,12 +28,19 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -46,6 +53,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
@@ -53,11 +62,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -120,11 +134,11 @@ internal fun rememberNavSpace(): Dp {
 
 // The icon of an app, loaded with Glide like the views of the rows loaded it
 @Composable
-internal fun AppIcon(packageName: String, icon: Int, size: Dp) {
+internal fun AppIcon(packageName: String, icon: Int, size: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val pixels = with(density) { 48.dp.roundToPx() }
-    val bitmap by produceState<Bitmap?>(null, packageName, icon) {
+    val pixels = with(density) { size.roundToPx() }
+    val bitmap by produceState<Bitmap?>(null, packageName, icon, pixels) {
         value = withContext(Dispatchers.IO) {
             if (icon <= 0) null else runCatching {
                 Glide.with(context.applicationContext)
@@ -140,7 +154,7 @@ internal fun AppIcon(packageName: String, icon: Int, size: Dp) {
     }
     val current = bitmap
     Box(
-        Modifier
+        modifier
             .size(size)
             .clearAndSetSemantics {}
     ) {
@@ -149,6 +163,71 @@ internal fun AppIcon(packageName: String, icon: Int, size: Dp) {
         else
             Image(current.asImageBitmap(), null, Modifier.fillMaxSize())
     }
+}
+
+// The search of a screen, which replaces the title while it is shown: its icon, a way to clear it, and the keyboard
+// closed by a search, when the screen has something to do with it
+@Composable
+internal fun SearchField(
+    query: String,
+    hint: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+    onSearch: (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .then(if (focusRequester == null) Modifier else Modifier.focusRequester(focusRequester)),
+        textStyle = MaterialTheme.typography.bodyMedium,
+        singleLine = true,
+        placeholder = { Text(hint, style = MaterialTheme.typography.bodyMedium) },
+        leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
+        trailingIcon = if (query.isEmpty()) null else {
+            {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        painterResource(R.drawable.ic_close),
+                        contentDescription = stringResource(R.string.title_clear_search)
+                    )
+                }
+            }
+        },
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+        ),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = if (onSearch == null) KeyboardActions.Default
+        else KeyboardActions(onSearch = { onSearch() })
+    )
+}
+
+// The spinner of a screen which is loading, which screen readers announce once
+@Composable
+internal fun Loading(modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.title_loading)
+    CircularProgressIndicator(
+        modifier.semantics {
+            contentDescription = description
+            liveRegion = LiveRegionMode.Polite
+        }
+    )
+}
+
+// What a screen says in the middle of it when it has nothing to show
+@Composable
+internal fun EmptyMessage(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        modifier.padding(32.dp),
+        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+        textAlign = TextAlign.Center
+    )
 }
 
 // A small rounded label of an app, like its uid or that it is a system app

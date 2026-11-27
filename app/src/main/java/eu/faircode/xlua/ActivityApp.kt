@@ -36,7 +36,6 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -60,8 +59,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -77,11 +74,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -116,14 +109,10 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -679,7 +668,6 @@ private fun AppScreen(
     val scrolled by remember {
         derivedStateOf { headerBottom > 0 && scroll.value > headerBottom }
     }
-    val loadingDescription = stringResource(R.string.title_loading)
 
     fun closeSearch() {
         state.text = ""
@@ -914,30 +902,17 @@ private fun AppScreen(
                     }
 
                     if (!any)
-                        Text(
+                        EmptyMessage(
                             stringResource(
                                 if (state.query.isEmpty()) R.string.title_no_available_hooks
                                 else R.string.title_no_matches
                             ),
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            textAlign = TextAlign.Center
+                            Modifier.fillMaxWidth()
                         )
                 }
 
             if (state.loading)
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .semantics {
-                            contentDescription = loadingDescription
-                            liveRegion = LiveRegionMode.Polite
-                        }
-                )
+                Loading(Modifier.align(Alignment.Center))
         }
     }
 
@@ -972,47 +947,17 @@ private fun AppBar(
             )
         }
         if (state.searching)
-            OutlinedTextField(
-                value = state.text,
-                onValueChange = {
+            SearchField(
+                query = state.text,
+                hint = stringResource(R.string.title_search_log_app),
+                onQueryChange = {
                     state.text = it
                     // Another search opens all sections again
                     state.toggled = emptySet()
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focusRequester),
-                placeholder = {
-                    Text(
-                        stringResource(R.string.title_search_log_app),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                },
-                leadingIcon = {
-                    Icon(painterResource(R.drawable.ic_search), contentDescription = null)
-                },
-                trailingIcon = if (state.text.isEmpty()) null else {
-                    {
-                        IconButton(onClick = {
-                            state.text = ""
-                            state.toggled = emptySet()
-                        }) {
-                            Icon(
-                                painterResource(R.drawable.ic_close),
-                                contentDescription = stringResource(R.string.title_clear_search)
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() })
+                modifier = Modifier.weight(1f),
+                focusRequester = focusRequester,
+                onSearch = { keyboard?.hide() }
             )
         else
             Column(

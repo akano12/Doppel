@@ -442,7 +442,7 @@ How the code fits together (package `eu.faircode.xlua`, kept from XPrivacyLua):
   before the app's own code runs. A hook is a definition of [hooks.json](app/src/main/assets/hooks.json) with a Lua
   script of *app/src/main/assets*, run by the LuaJ copy in *org.luaj* with `XHook` and `XParam`, see
   [DEFINE.md](docs/DEFINE.md). The definitions of Downloads (*repo*) are packaged as *assets/repo*.
-* The screens (`Activity*`, `Fragment*`) are drawn with Kotlin and Jetpack Compose, in the palette, fonts and text styles of `DoppelTheme`, and use the service through `Data` too; the hook engine, the service and the database stay in Java.
+* The screens (`Activity*`, `Fragment*`) are drawn with Kotlin and Jetpack Compose, in the palette, fonts and text styles of `DoppelTheme`, which also holds what they share (the icon of an app, the search field, the spinner of a screen which is loading and the text of one with nothing to show), and use the service through `Data` too; the hook engine, the service and the database stay in Java.
 * The unit tests run the scripts with Lua stand-ins for Android objects (`Scripts`) and check every definition
   against the SDK (`HookDefinitionsTest`); a new or changed hook needs a test there.
 

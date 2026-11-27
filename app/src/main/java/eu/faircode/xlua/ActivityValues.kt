@@ -53,14 +53,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -116,7 +114,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -439,15 +436,8 @@ class ActivityValues : ActivityBase() {
                 hooks = loadedHooks
                 collection = loadedCollection
                 form = buildForm(custom)
+                fillDrafts()
                 opened = emptySet()
-                form.filterIsInstance<Field>().forEach { field ->
-                    drafts[field.key] = values[field.key].orEmpty()
-                    if (FakeIds.isId(field.key)) {
-                        modes[field.key] = savedMode(field.key)
-                        if (modes[field.key] == FakeIds.BOOT || modes[field.key] == FakeIds.BOOT_ALL)
-                            bootModes[field.key] = modes[field.key]!!
-                    }
-                }
 
                 restored?.forEach { (key, value) -> setEntered(key, value) }
                 restored = null
@@ -1020,15 +1010,8 @@ class ActivityValues : ActivityBase() {
                         )
                 }
 
-                if (loading) {
-                    val description = stringResource(R.string.title_loading)
-                    CircularProgressIndicator(
-                        Modifier.align(Alignment.Center).semantics {
-                            contentDescription = description
-                            liveRegion = LiveRegionMode.Polite
-                        }
-                    )
-                }
+                if (loading)
+                    Loading(Modifier.align(Alignment.Center))
             }
 
             // The bar of the changes, while there are some, with how many values changed
@@ -1079,36 +1062,13 @@ class ActivityValues : ActivityBase() {
                 Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.title_back))
             }
             if (searchOpen)
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQuery,
-                    Modifier.weight(1f).padding(start = 4.dp).heightIn(min = 48.dp).focusRequester(focus),
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    singleLine = true,
-                    placeholder = {
-                        Text(
-                            stringResource(R.string.title_search_values),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_search), null) },
-                    trailingIcon = if (query.isEmpty()) null else {
-                        {
-                            IconButton(onClick = { onQuery("") }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_close),
-                                    stringResource(R.string.title_clear_search)
-                                )
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() })
+                SearchField(
+                    query = query,
+                    hint = stringResource(R.string.title_search_values),
+                    onQueryChange = onQuery,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp),
+                    focusRequester = focus,
+                    onSearch = { keyboard?.hide() }
                 )
             else
                 Column(Modifier.weight(1f).padding(start = 16.dp)) {
@@ -1609,12 +1569,11 @@ class ActivityValues : ActivityBase() {
         }
     }
 
-    // The form of the scope with what is saved, like for the discard of the changes
-    private fun resetDrafts() {
+    // The drafts of the fields of the form, from the values of the scope, for a form just built
+    private fun fillDrafts() {
         drafts.clear()
         modes.clear()
         bootModes.clear()
-        opened = emptySet()
         form.filterIsInstance<Field>().forEach { field ->
             drafts[field.key] = values[field.key].orEmpty()
             if (FakeIds.isId(field.key)) {
@@ -1623,6 +1582,12 @@ class ActivityValues : ActivityBase() {
                     bootModes[field.key] = modes[field.key]!!
             }
         }
+    }
+
+    // The form of the scope with what is saved, like for the discard of the changes
+    private fun resetDrafts() {
+        fillDrafts()
+        opened = emptySet()
         errorKey = null
         errorText = null
     }

@@ -55,13 +55,11 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -107,7 +105,6 @@ import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
@@ -123,7 +120,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.luaj.vm2.compiler.LuaC
 import java.io.ByteArrayInputStream
-import java.lang.reflect.Member
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.function.Consumer
@@ -807,17 +803,8 @@ class ActivityHookEdit : ActivityBase() {
                 else
                     holder.SaveableStateProvider("script") { ScriptTab() }
 
-                if (spinner) {
-                    val loadingDescription = stringResource(R.string.title_loading)
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .semantics {
-                                contentDescription = loadingDescription
-                                liveRegion = LiveRegionMode.Polite
-                            }
-                    )
-                }
+                if (spinner)
+                    Loading(Modifier.align(Alignment.Center))
             }
         }
     }

@@ -56,13 +56,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -72,8 +69,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -107,17 +102,13 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -733,16 +724,9 @@ private fun DownloadsScreen(
 
             if (emptyText != 0)
                 item(key = "empty") {
-                    Text(
-                        text = stringResource(emptyText),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(32.dp),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        textAlign = TextAlign.Center
+                    EmptyMessage(
+                        stringResource(emptyText),
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     )
                 }
 
@@ -814,15 +798,7 @@ private fun DownloadsScreen(
             )
 
         if (loading) {
-            val loadingLabel = stringResource(R.string.title_loading)
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .semantics {
-                        contentDescription = loadingLabel
-                        liveRegion = LiveRegionMode.Polite
-                    }
-            )
+            Loading(Modifier.align(Alignment.Center))
         }
     }
 
@@ -875,42 +851,13 @@ private fun DownloadsHeader(
                 )
             }
             if (searchOpen)
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQuery,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 4.dp)
-                        .heightIn(min = 48.dp)
-                        .focusRequester(focusRequester),
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    singleLine = true,
-                    placeholder = {
-                        Text(
-                            stringResource(R.string.title_search_downloads),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(painterResource(R.drawable.ic_search), contentDescription = null)
-                    },
-                    trailingIcon = if (query.isEmpty()) null else {
-                        {
-                            IconButton(onClick = { onQuery("") }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_close),
-                                    contentDescription = stringResource(R.string.title_clear_search)
-                                )
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() })
+                SearchField(
+                    query = query,
+                    hint = stringResource(R.string.title_search_downloads),
+                    onQueryChange = onQuery,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp),
+                    focusRequester = focusRequester,
+                    onSearch = { keyboard?.hide() }
                 )
             else
                 Column(Modifier.weight(1f).padding(start = 8.dp)) {

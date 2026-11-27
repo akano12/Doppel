@@ -21,7 +21,6 @@ package eu.faircode.xlua
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.icu.text.RelativeDateTimeFormatter
 import android.os.Bundle
 import android.text.format.DateUtils
@@ -31,7 +30,6 @@ import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -55,10 +53,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,8 +64,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -82,7 +76,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -95,7 +88,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -108,33 +100,22 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DecodeFormat
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.request.RequestOptions
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.LinkedHashMap
@@ -402,7 +383,6 @@ private fun LogScreen(
     val largeText = density.fontScale > 1.3f
     val showOverview = remember(configuration) { resources.getBoolean(R.bool.show_overview) }
     val title = if (only == null) stringResource(R.string.nav_activity) else (label ?: "")
-    val loadingLabel = stringResource(R.string.title_loading)
 
     val data = remember(state.entries, state.errors, state.filter, state.query, only) {
         buildScreenData(context, only, state.entries, state.errors, state.filter, state.query)
@@ -540,25 +520,9 @@ private fun LogScreen(
         }
 
         if (state.loading)
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .semantics {
-                        contentDescription = loadingLabel
-                        liveRegion = LiveRegionMode.Polite
-                    }
-            )
+            Loading(Modifier.align(Alignment.Center))
         else if (data.items.isEmpty())
-            Text(
-                text = stringResource(data.emptyText),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                textAlign = TextAlign.Center
-            )
+            EmptyMessage(stringResource(data.emptyText), Modifier.align(Alignment.Center))
     }
 }
 
@@ -753,43 +717,6 @@ private fun Stats(data: ScreenData, modifier: Modifier, state: LogState) {
             color = if (data.statsError) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
-    )
-}
-
-@Composable
-private fun SearchField(
-    query: String,
-    hint: String,
-    focusRequester: FocusRequester,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .focusRequester(focusRequester),
-        textStyle = MaterialTheme.typography.bodyMedium,
-        singleLine = true,
-        placeholder = { Text(hint, style = MaterialTheme.typography.bodyMedium) },
-        leadingIcon = { Icon(painterResource(R.drawable.ic_search), contentDescription = null) },
-        trailingIcon = if (query.isEmpty()) null else {
-            {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        painterResource(R.drawable.ic_close),
-                        contentDescription = stringResource(R.string.title_clear_search)
-                    )
-                }
-            }
-        },
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-        ),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
     )
 }
 
@@ -1274,45 +1201,6 @@ private fun ExpandButton(full: Boolean, onToggle: () -> Unit) {
             )
         }
     }
-}
-
-@Composable
-private fun AppIcon(
-    packageName: String,
-    icon: Int,
-    size: Dp,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val px = with(density) { size.roundToPx() }
-    val bitmap by produceState<Bitmap?>(initialValue = null, packageName, icon, px) {
-        value = withContext(Dispatchers.IO) {
-            if (icon <= 0) null else runCatching {
-                Glide.with(context.applicationContext)
-                    .asBitmap()
-                    .apply(RequestOptions().format(DecodeFormat.PREFER_RGB_565))
-                    .load("android.resource://$packageName/$icon".toUri())
-                    .diskCacheStrategy(DiskCacheStrategy.NONE)
-                    .override(px, px)
-                    .submit()
-                    .get()
-            }.getOrNull()
-        }
-    }
-    val current = bitmap
-    if (current != null)
-        Image(
-            bitmap = current.asImageBitmap(),
-            contentDescription = null,
-            modifier = modifier.size(size)
-        )
-    else
-        Icon(
-            painterResource(android.R.drawable.sym_def_app_icon),
-            contentDescription = null,
-            modifier = modifier.size(size)
-        )
 }
 
 // Like DateUtils.getRelativeDateTimeString, which formats the time without the 24-hour setting

@@ -72,8 +72,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -115,12 +113,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -569,7 +562,6 @@ private fun AppsScreen(
     val focusRequester = remember { FocusRequester() }
     val navSpace = rememberNavSpace()
     val largeText = density.fontScale > 1.3f
-    val loadingLabel = stringResource(R.string.title_loading)
     val showOverview = remember(configuration) { resources.getBoolean(R.bool.show_overview) }
 
     val items = remember(
@@ -717,23 +709,13 @@ private fun AppsScreen(
             )
 
         if (state.loading)
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .semantics { contentDescription = loadingLabel }
-            )
+            Loading(Modifier.align(Alignment.Center))
         else if (state.loaded && items.isEmpty())
-            Text(
-                text = stringResource(
+            EmptyMessage(
+                stringResource(
                     if (state.query.isNotBlank()) R.string.title_no_matches else R.string.title_no_apps
                 ),
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                textAlign = TextAlign.Center
+                Modifier.align(Alignment.Center)
             )
     }
 }
@@ -772,26 +754,17 @@ private fun AppsHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (state.searchOpen)
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = {
+                SearchField(
+                    query = state.query,
+                    hint = stringResource(R.string.title_search_apps),
+                    onQueryChange = {
                         state.query = it
                         // Another search opens all sections again
                         state.searchClosed = emptySet()
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester),
-                    placeholder = { Text(stringResource(R.string.title_search_apps)) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { onSearchAction() })
+                    modifier = Modifier.weight(1f),
+                    focusRequester = focusRequester,
+                    onSearch = onSearchAction
                 )
             else
                 Text(
