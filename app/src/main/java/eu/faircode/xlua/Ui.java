@@ -24,32 +24,21 @@ import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.text.Html;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.StringRes;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.res.ResourcesCompat;
-import androidx.core.graphics.ColorUtils;
-
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.DecodeFormat;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.request.RequestOptions;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.io.ByteArrayOutputStream;
@@ -145,47 +134,6 @@ final class Ui {
     private static final int ERROR_LINES = 8;
 
     private Ui() {
-    }
-
-    static int dp(Context context, int value) {
-        return Math.round(value * context.getResources().getDisplayMetrics().density);
-    }
-
-    static int color(Context context, int attr) {
-        TypedValue value = new TypedValue();
-        context.getTheme().resolveAttribute(attr, value, true);
-        return value.data;
-    }
-
-    // A color of the theme for the tint of a background or an image
-    static ColorStateList tint(Context context, int attr) {
-        return ColorStateList.valueOf(color(context, attr));
-    }
-
-    // A partially restricted group, or all groups partially restricted,
-    // has a dash in the switch and a lighter track; track is the one of the switch when fully restricted
-    static void setPartial(MaterialSwitch sw, ColorStateList track, boolean partial) {
-        Context context = sw.getContext();
-        sw.setThumbIconDrawable(partial ? AppCompatResources.getDrawable(context, R.drawable.ic_partial) : null);
-        sw.setTrackTintList(partial
-                ? ColorStateList.valueOf(ColorUtils.setAlphaComponent(color(context, androidx.appcompat.R.attr.colorPrimary), 0x80))
-                : track);
-    }
-
-    static void loadIcon(ImageView iv, String packageName, int icon) {
-        if (icon <= 0) {
-            // A load for the app shown before in a recycled row would still put its icon here
-            Glide.with(iv.getContext()).clear(iv);
-            iv.setImageResource(android.R.drawable.sym_def_app_icon);
-            return;
-        }
-        int size = dp(iv.getContext(), 48);
-        Glide.with(iv.getContext())
-                .applyDefaultRequestOptions(new RequestOptions().format(DecodeFormat.PREFER_RGB_565))
-                .load(Uri.parse("android.resource://" + packageName + "/" + icon))
-                .diskCacheStrategy(DiskCacheStrategy.NONE)
-                .override(size, size)
-                .into(iv);
     }
 
     // Like '5 min. ago', or 'just now' within a minute, which DateUtils calls '0 min. ago'

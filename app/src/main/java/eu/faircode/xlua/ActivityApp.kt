@@ -313,7 +313,7 @@ class ActivityApp : ActivityBase() {
         for (hook in hooks)
             grouped.getOrPut(hook.group) { ArrayList() }.add(hook)
         state.grouped = grouped
-        state.sections = GroupsSheet.bySection(this, grouped.keys)
+        state.sections = groupsBySection(this, grouped.keys)
             .entries.map { it.key to it.value }
         state.hasValues = hooks.any { it.settings.isNotEmpty() }
 
@@ -1731,36 +1731,6 @@ private fun HookRow(
             )
         }
     }
-}
-
-@Composable
-private fun AppSwitch(
-    checked: Boolean,
-    partial: Boolean,
-    description: String,
-    modifier: Modifier = Modifier,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Switch(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
-        modifier = modifier.semantics { contentDescription = description },
-        thumbContent = if (partial) {
-            {
-                Icon(
-                    painterResource(R.drawable.ic_partial),
-                    contentDescription = null,
-                    modifier = Modifier.size(SwitchDefaults.IconSize)
-                )
-            }
-        } else null,
-        colors = SwitchDefaults.colors(
-            checkedTrackColor = if (partial)
-                MaterialTheme.colorScheme.primary.copy(alpha = 0x80 / 255f)
-            else
-                MaterialTheme.colorScheme.primary
-        )
-    )
 }
 
 // The description of a group in a bubble pointing at its icon: below it, or above it when there is no room below;

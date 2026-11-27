@@ -137,7 +137,8 @@ private const val PREF_COLLAPSED = "apps_collapsed"
 class FragmentApps : FragmentBase() {
     private lateinit var state: AppsState
     private var hiddenNow by mutableStateOf(false)
-    private var sheet: GroupsSheet? = null
+    // The row of the sheet of the groups of an app, while it is open
+    private var groupsRow by mutableStateOf<AdapterApp.Row?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -174,6 +175,26 @@ class FragmentApps : FragmentBase() {
                         onGroups = ::showGroups,
                         onBulk = ::bulk
                     )
+                    val sheetRow = groupsRow
+                    if (sheetRow != null)
+                        GroupsSheet(
+                            activity = requireActivity(),
+                            app = sheetRow.app,
+                            hooks = state.hooks,
+                            collection = state.collection,
+                            unscoped = sheetRow.unscoped,
+                            onBackground = { run(TAG, it) },
+                            onChanged = { before, after, available ->
+                                sheetChanged(sheetRow.app, before, after, available)
+                            },
+                            onMore = {
+                                groupsRow = null
+                                startActivity(
+                                    ActivityApp.getIntent(context, sheetRow.app.packageName, sheetRow.app.uid)
+                                )
+                            },
+                            onClosed = { groupsRow = null }
+                        )
                 }
             }
         }
@@ -256,8 +277,8 @@ class FragmentApps : FragmentBase() {
     }
 
     override fun onDestroyView() {
-        sheet?.close()
-        sheet = null
+        // Without telling the host, like the views of the sheet did; what changed is saved already
+        groupsRow = null
         super.onDestroyView()
     }
 
@@ -267,21 +288,21 @@ class FragmentApps : FragmentBase() {
     }
 
     private fun showGroups(row: AdapterApp.Row) {
-        if (sheet?.isOpen == true) return
+        if (groupsRow != null) return
+        groupsRow = row
+    }
+
+    // The sheet closed after changes, with the hooks assigned before and now
+    private fun sheetChanged(app: XApp, before: Set<String>, after: Set<String>, available: List<XHook>) {
         val activity = requireActivity()
-        sheet = GroupsSheet.show(activity, row.app, state.hooks, state.collection, row.unscoped, object : GroupsSheet.Host {
-            override fun background(task: Ui.Task) { run(TAG, task) }
-            override fun changed(app: XApp, before: Set<String>, after: Set<String>, available: List<XHook>) {
-                val groups = available.mapTo(HashSet()) { it.group }
-                val restricted = available.filter { after.contains(it.id) }.mapTo(HashSet()) { it.group }
-                assigned(app, available, after)
-                run(TAG) { post { load() } }
-                val text = resources.getQuantityString(R.plurals.msg_groups_restricted, groups.size,
-                    app.getLabel(), restricted.size, groups.size)
-                showUndo(activity, text, app, after, before, available)
-                if (after.isNotEmpty()) run(TAG) { offerScope(activity, listOf(app)) }
-            }
-        })
+        val groups = available.mapTo(HashSet()) { it.group }
+        val restricted = available.filter { after.contains(it.id) }.mapTo(HashSet()) { it.group }
+        assigned(app, available, after)
+        run(TAG) { post { load() } }
+        val text = resources.getQuantityString(R.plurals.msg_groups_restricted, groups.size,
+            app.getLabel(), restricted.size, groups.size)
+        showUndo(activity, text, app, after, before, available)
+        if (after.isNotEmpty()) run(TAG) { offerScope(activity, listOf(app)) }
     }
 
     private fun restrictAll(app: XApp) {

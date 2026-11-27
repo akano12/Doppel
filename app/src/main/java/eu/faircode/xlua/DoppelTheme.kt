@@ -34,6 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -53,6 +55,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,7 +118,7 @@ internal fun rememberNavSpace(): Dp {
     }
 }
 
-// The icon of an app, loaded like Ui.loadIcon loads it for the views
+// The icon of an app, loaded with Glide like the views of the rows loaded it
 @Composable
 internal fun AppIcon(packageName: String, icon: Int, size: Dp) {
     val context = LocalContext.current
@@ -170,6 +173,37 @@ internal fun AppBadge(text: String, description: String? = null) {
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+// A switch of a group or a hook: part of a group shows the icon of a partial state on a track of its own
+@Composable
+internal fun AppSwitch(
+    checked: Boolean,
+    partial: Boolean,
+    description: String,
+    modifier: Modifier = Modifier,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier.semantics { contentDescription = description },
+        thumbContent = if (partial) {
+            {
+                Icon(
+                    painterResource(R.drawable.ic_partial),
+                    contentDescription = null,
+                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                )
+            }
+        } else null,
+        colors = SwitchDefaults.colors(
+            checkedTrackColor = if (partial)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0x80 / 255f)
+            else
+                MaterialTheme.colorScheme.primary
+        )
+    )
 }
 
 @Composable

@@ -153,8 +153,4 @@
         <item name="fontFamily">@font/plex_sans_title</item>
     </style>
 
-    <style name="XLua.Text.Meta" parent="XLua.TextAppearance.BodySmall">
-        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
-    </style>
-
 </resources>
