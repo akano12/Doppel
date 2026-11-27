@@ -416,7 +416,7 @@ Building
 <details>
 <summary>Build from source</summary>
 
-With [Android Studio](https://developer.android.com/studio), or from the command line with JDK 17 or later and the Android SDK (platform 37):
+With [Android Studio](https://developer.android.com/studio), or from the command line with JDK 17 or later and the Android SDK (platform 37); the screens are in Kotlin with Jetpack Compose, which Gradle downloads, so nothing else needs to be installed:
 
 ```
 ./gradlew assembleDebug        # debug build
@@ -442,7 +442,7 @@ How the code fits together (package `eu.faircode.xlua`, kept from XPrivacyLua):
   before the app's own code runs. A hook is a definition of [hooks.json](app/src/main/assets/hooks.json) with a Lua
   script of *app/src/main/assets*, run by the LuaJ copy in *org.luaj* with `XHook` and `XParam`, see
   [DEFINE.md](docs/DEFINE.md). The definitions of Downloads (*repo*) are packaged as *assets/repo*.
-* The screens (`Activity*`, `Fragment*`) use the service through `Data` too.
+* The screens (`Activity*`, `Fragment*`) are drawn with Kotlin and Jetpack Compose, in the palette, fonts and text styles of `DoppelTheme`, and use the service through `Data` too; the hook engine, the service and the database stay in Java.
 * The unit tests run the scripts with Lua stand-ins for Android objects (`Scripts`) and check every definition
   against the SDK (`HookDefinitionsTest`); a new or changed hook needs a test there.
 

@@ -275,7 +275,7 @@ final class Ui {
         }
     }
 
-    // Selectable monospaced text, like an exception
+    // Selectable monospaced text, like an exception; the one view dialog left, see the comment of dialog_text.xml
     static void showText(Context context, CharSequence title, CharSequence text) {
         View view = LayoutInflater.from(context).inflate(R.layout.dialog_text, null, false);
         TextView tvText = view.findViewById(R.id.tvText);

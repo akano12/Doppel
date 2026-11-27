@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The one layout kept after the move to Compose: the text dialog of Ui.showText, which the log opens for the exception
+     of a hook and the screen of an app for the description of a group. It is a dialog of the platform, not a screen,
+     with a selectable text in a monospaced font, and it has no composition of its own to keep, so it stays a view
+     dialog; see also the switch and the sheet of the groups, which are Compose now -->
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
