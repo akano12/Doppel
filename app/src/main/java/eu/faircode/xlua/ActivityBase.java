@@ -41,7 +41,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.Lifecycle;
 
-import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.lang.ref.WeakReference;
@@ -111,16 +110,6 @@ public class ActivityBase extends AppCompatActivity {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
-    }
-
-    // Toolbar with an up button, which goes back, like the back gesture
-    protected MaterialToolbar setupToolbar(CharSequence title) {
-        MaterialToolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setTitle(title);
-        toolbar.setNavigationIcon(R.drawable.ic_arrow_back);
-        toolbar.setNavigationContentDescription(R.string.title_back);
-        toolbar.setNavigationOnClickListener(view -> getOnBackPressedDispatcher().onBackPressed());
-        return toolbar;
     }
 
     // Going back from a screen with changes which are not saved asks first

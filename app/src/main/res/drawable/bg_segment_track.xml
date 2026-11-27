@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The track of a compact segmented control, the choices inside it, see item_value_mode -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <corners android:radius="14dp" />
-    <solid android:color="?attr/colorSurfaceContainerHighest" />
-</shape>
