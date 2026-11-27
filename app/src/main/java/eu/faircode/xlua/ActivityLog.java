@@ -22,6 +22,7 @@ package eu.faircode.xlua;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.widget.FrameLayout;
 
 // The log of one app, opened from the screen of the app, like the Activity tab: the header of the log
 // has back and the app as its title, see FragmentLog
@@ -42,7 +43,12 @@ public class ActivityLog extends ActivityBase {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_log);
+        // The container of the fragment, which the framework restores into it, like the tabs of the main screen
+        FrameLayout root = new FrameLayout(this);
+        root.setId(R.id.content);
+        setContentView(root);
+        applyInsets(root);
+
         String label = getIntent().getStringExtra(EXTRA_LABEL);
         // The title of the window, which screen readers and the recent apps name
         setTitle(getString(R.string.title_pair, getString(R.string.title_log), label));
