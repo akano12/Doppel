@@ -147,7 +147,7 @@ class FragmentLog : FragmentBase() {
     private var onlyUid = -1
     private var label: String? = null
     private lateinit var state: LogState
-    // Back closes the search of the tab shown only, like TitleSearch does for the views
+    // Back closes the search of the tab shown only, like it did for the views
     private var hiddenNow by mutableStateOf(false)
 
     // The log of one app, see ActivityLog
@@ -414,7 +414,7 @@ private fun LogScreen(
         keyboard?.hide()
     }
 
-    // Back closes the search first, like it does for the views, see TitleSearch
+    // Back closes the search first, like it did for the views
     DisposableEffect(state.queryOpen, hidden) {
         val callback = object : OnBackPressedCallback(state.queryOpen && !hidden) {
             override fun handleOnBackPressed() {

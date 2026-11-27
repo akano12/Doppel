@@ -102,7 +102,11 @@ public class ActivityBase extends AppCompatActivity {
     @Override
     public void setContentView(int layoutResID) {
         super.setContentView(layoutResID);
-        View root = ((ViewGroup) findViewById(android.R.id.content)).getChildAt(0);
+        applyInsets(((ViewGroup) findViewById(android.R.id.content)).getChildAt(0));
+    }
+
+    // The same for a screen which builds its views itself, like the tabs of the main screen
+    protected void applyInsets(View root) {
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() |
                     WindowInsetsCompat.Type.displayCutout() |

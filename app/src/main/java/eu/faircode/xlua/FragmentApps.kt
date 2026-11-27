@@ -414,7 +414,7 @@ class FragmentApps : FragmentBase() {
 private class AppsState(private val prefs: android.content.SharedPreferences) {
     fun restore(bundle: Bundle) {
         query = bundle.getString("apps_query", "")
-        // The field is shown for the text restored with it, like TitleSearch.restore
+        // The field is shown for the text restored with it
         searchOpen = query.isNotEmpty()
     }
 
@@ -571,7 +571,7 @@ private fun AppsScreen(
         keyboard?.hide()
     }
 
-    // Back closes the search first, like it does for the views, see TitleSearch
+    // Back closes the search first, like it did for the views
     DisposableEffect(state.searchOpen, hidden) {
         val callback = object : OnBackPressedCallback(state.searchOpen && !hidden) {
             override fun handleOnBackPressed() {

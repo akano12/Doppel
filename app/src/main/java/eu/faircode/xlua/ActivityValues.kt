@@ -356,7 +356,7 @@ class ActivityValues : ActivityBase() {
             restored = null
         }
 
-        // Back closes the search first, as it did for the views, see TitleSearch; then changes which are not saved
+        // Back closes the search first, as it did for the views; then changes which are not saved
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {

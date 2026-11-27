@@ -688,7 +688,7 @@ private fun AppScreen(
         keyboard?.hide()
     }
 
-    // Back closes the search first, like it does for the views, see TitleSearch
+    // Back closes the search first, like it did for the views
     DisposableEffect(state.searching) {
         val callback = object : OnBackPressedCallback(state.searching) {
             override fun handleOnBackPressed() {

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tabs of the main screen, in the order of the bar, and the container the framework restores them into,
+     see ActivityMain -->
+<resources>
+    <item name="content" type="id" />
+    <item name="nav_apps" type="id" />
+    <item name="nav_activity" type="id" />
+    <item name="nav_hooks" type="id" />
+    <item name="nav_settings" type="id" />
+</resources>

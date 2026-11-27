@@ -546,7 +546,7 @@ private fun DownloadsScreen(
         searchOpen = true
         focusRequests++
     }
-    // Back closes the search first, like TitleSearch does for the views
+    // Back closes the search first, like it did for the views
     DisposableEffect(searchOpen) {
         val callback = object : OnBackPressedCallback(searchOpen) {
             override fun handleOnBackPressed() {

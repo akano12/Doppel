@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The floating bar of the tabs, see activity_main.xml and NavBar -->
+    <!-- The floating bar of the tabs, see ActivityMain -->
     <dimen name="nav_floating_height">64dp</dimen>
     <dimen name="nav_floating_radius">32dp</dimen>
     <dimen name="nav_floating_margin">12dp</dimen>

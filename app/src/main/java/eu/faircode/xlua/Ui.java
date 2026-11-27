@@ -28,10 +28,8 @@ import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.text.Editable;
 import android.text.Html;
 import android.text.TextUtils;
-import android.text.TextWatcher;
 import android.text.format.DateUtils;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
@@ -39,7 +37,6 @@ import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -469,24 +466,6 @@ final class Ui {
         boolean has(Query query) {
             return (root.contains(query.root) || local.contains(query.local));
         }
-    }
-
-    // Text of a search field, after each change
-    static void onTextChanged(EditText editText, Consumer<String> listener) {
-        editText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                listener.accept(s.toString());
-            }
-        });
     }
 
     // Filter chips with one chip id per value, in the same order; selects a value and reports selections
