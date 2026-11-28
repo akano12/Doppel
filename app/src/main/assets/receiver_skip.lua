@@ -24,7 +24,8 @@
 -- broadcast about another app (package), system apps too, like its install or removal, of which a device without the
 -- app gets none; a broadcast of hardware whose features are hidden (features), which a device without the hardware
 -- never has; a result of Play services, of the activity (activity) or a geofence (geofence), which a device without
--- activity recognition or location does not send. intent_createfromparcel, features and intent_results mark those
+-- activity recognition or location does not send, or a Huawei activity callback (activity_huawei). intent_createfromparcel,
+-- features and intent_results mark the corresponding events
 -- when they read them, which spares reading the extras of the intent here, before the class loader of the app is set;
 -- a result of Play services which starts the app is read before the hooks are there, so a receiver of the manifest
 -- looks for the names of the results in the parcel of an intent which is not marked, without reading the values. The
@@ -66,7 +67,9 @@ function before(hook, param)
     if intent == nil then
         return false
     end
-    if MARKS[variant] ~= nil then
+    if variant == 'activity' and intent:getAction() == 'com.huawei.hms.location.ACTION_PROCESS_LOCATION' then
+        -- Huawei Location Kit activity callbacks have no Google result key; match only their documented action.
+    elseif MARKS[variant] ~= nil then
         if not param:getValue(MARKS[variant], intent) and
                 not (method == 'handleReceiver' and KEYS[variant] ~= nil and result(intent, KEYS[variant])) then
             return false

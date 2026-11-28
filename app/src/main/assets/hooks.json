@@ -88,10 +88,67 @@
   // parcels itself, so every read agrees with extractResult; the intents with the results Play services sends to the
   // app do not reach its receivers, and in apps without these hooks they have the same fake results
   // (Intent.createFromParcel/activity below).
-  // shortcut: in apps R8 shrank, the creator of the activity keeps the real result of Awareness (see its script) and
-  // the one of the transitions, whose class R8 renames, does not install; and DetectedActivityFence of Awareness
-  // follows the real activity, since fences of the fake unknown activity would need to be always or never true; do
-  // these when apps read them
+  // shortcut: in apps R8 shrank, the creator of the activity can keep a real result, and the transition creator whose
+  // class R8 renames does not install; do these when apps read them
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "DetectedActivityResponse.getActivityRecognitionResult",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.snapshot.DetectedActivityResponse",
+    "methodName": "getActivityRecognitionResult",
+    "parameterTypes": [],
+    "returnType": "com.google.android.gms.location.ActivityRecognitionResult",
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognitionresult_extractresult"
+  },
+  // The activity fences of Awareness, which Play services evaluates on the real activity: they tell the fake unknown
+  // activity alone, true of during(UNKNOWN) and false of the others, since the fake activity changes never (see
+  // detectedactivityfence); their callbacks and the answers of queryFences then agree with the snapshots above, and a
+  // fence of the app which combines them with others keeps its other conditions
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "DetectedActivityFence.during",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.fence.DetectedActivityFence",
+    "methodName": "during",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@detectedactivityfence"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "DetectedActivityFence.starting",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.fence.DetectedActivityFence",
+    "methodName": "starting",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@detectedactivityfence"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "DetectedActivityFence.stopping",
+    "author": "akano12",
+    "className": "com.google.android.gms.awareness.fence.DetectedActivityFence",
+    "methodName": "stopping",
+    "parameterTypes": [
+      "int[]"
+    ],
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@detectedactivityfence"
+  },
   {
     "collection": "Privacy",
     "group": "Determine.Activity",
@@ -128,9 +185,9 @@
   // the request of the older ActivityRecognitionApi, of the class in its static field, whose name changes with each
   // version; for an app without the permission (from Android 10 the one of Android), for an interval below 0 or with
   // Play services missing they answer like without Doppel.
-  // shortcut: in apps R8 shrank these names change, so the requests register; the requests of activity of HMS register;
-  // and a registration from before the restriction which the app does not request again keeps sending, with the results
-  // faked above; hook those when apps use them
+  // shortcut: in apps R8 shrank these names change, so the requests register; and a registration from before the
+  // restriction which the app does not request again keeps sending, with the results faked above; hook those when apps
+  // use them
   {
     "collection": "Privacy",
     "group": "Determine.Activity",
@@ -310,6 +367,97 @@
     "minSdk": 34,
     "excludePackages": "android",
     "luaScript": "@receiver_skip"
+  },
+  // Huawei Location Kit activity service factories and constructors, and both activity update registrations. On an
+  // available service with the permission, requests complete successfully without registering; response readers below
+  // also fake callback results.
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentification.getService",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentification",
+    "methodName": "getService",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "returnType": "com.huawei.hms.location.ActivityIdentificationService",
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognition_getclient"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentification.getService/activity",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentification",
+    "methodName": "getService",
+    "parameterTypes": [
+      "android.app.Activity"
+    ],
+    "returnType": "com.huawei.hms.location.ActivityIdentificationService",
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognition_getclient"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentificationService.constructor",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentificationService",
+    "parameterTypes": [
+      "android.content.Context"
+    ],
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognition_getclient"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentificationService.constructor/activity",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentificationService",
+    "parameterTypes": [
+      "android.app.Activity"
+    ],
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognition_getclient"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentificationService.createActivityIdentificationUpdates",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentificationService",
+    "methodName": "createActivityIdentificationUpdates",
+    "parameterTypes": [
+      "long",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "com.huawei.hmf.tasks.Task",
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognition_getclient"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Determine.Activity",
+    "name": "ActivityIdentificationService.createActivityConversionUpdates",
+    "author": "akano12",
+    "className": "com.huawei.hms.location.ActivityIdentificationService",
+    "methodName": "createActivityConversionUpdates",
+    "parameterTypes": [
+      "com.huawei.hms.location.ActivityConversionRequest",
+      "android.app.PendingIntent"
+    ],
+    "returnType": "com.huawei.hmf.tasks.Task",
+    "minSdk": 28,
+    "optional": true,
+    "luaScript": "@activityrecognition_getclient"
   },
   // The activity identification and conversions (transitions) of HMS Location Kit of Huawei, like those of Play
   // services, also by their creators, which make them of the extras of the intents getDataFromIntent reads, so a read

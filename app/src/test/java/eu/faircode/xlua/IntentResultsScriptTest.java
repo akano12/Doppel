@@ -96,6 +96,7 @@ public class IntentResultsScriptTest {
             // An intent read from a parcel, or one the app made itself
             "function intentof(values, binder, made)",
             "  local intent = { extras = bundleof(values, binder, 'boot', not made), replaced = 0 }",
+            "  function intent:getAction() return self.action end",
             "  function intent:getExtras() local e = self.extras return bundleof(e.values, e.binder, e.loader, e.inparcel) end",
             "  function intent:setExtrasClassLoader(loader) self.extras.loader = loader end",
             "  function intent:replaceExtras(bundle) self.replaced = self.replaced + 1",

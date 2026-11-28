@@ -3263,12 +3263,12 @@ public class NetworkScriptsTest {
                         "  assert(restricted == param.set)\n" +
                         "  return tostring(param.result)\n" +
                         "end\n" +
-                        "local restricted = after(hookof('getClient'), paramof(client))\n" +
+                        "local restricted = after(hookof('getClient', 'com.google.android.gms.location.ActivityRecognition'), paramof(client))\n" +
                         "local count = 0 for _ in pairs(hooked) do count = count + 1 end\n" +
                         "hooked = {}\n" +
                         "local legacyAfter = after(hookof('ActivityRecognitionApi:requestActivityUpdates'), paramfor({}, api))\n" +
                         "local legacyHooked = next(hooked) ~= nil\n" +
-                        "local constructed = after(hookof(nil), made)\n" +
+                        "local constructed = after(hookof(nil, 'com.google.android.gms.location.ActivityRecognitionClient'), made)\n" +
                         "local outcomes = {\n" +
                         "  request('requestActivityUpdates', { [0] = 0, [1] = 'updates' }),\n" +
                         "  request('requestActivityTransitionUpdates', { [0] = 'transitions', [1] = 'pi' }),\n" +
@@ -3303,7 +3303,7 @@ public class NetworkScriptsTest {
                         "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = 0, [1] = 'updating' })\n" +
                         "types['com.google.android.gms.common.GoogleApiAvailability'] = nil\n" +
                         "outcomes[#outcomes + 1] = request('requestActivityUpdates', { [0] = 0, [1] = 'shrunk' })\n" +
-                        "return restricted, count, constructed, after(hookof('getClient'), paramof(nil)), legacyAfter, legacyHooked,\n" +
+                        "return restricted, count, constructed, after(hookof('getClient', 'com.google.android.gms.location.ActivityRecognition'), paramof(nil)), legacyAfter, legacyHooked,\n" +
                         "  table.concat(outcomes, ','), table.concat(removed, ',')");
         assertTrue(result.arg(1).toboolean());
         assertEquals(3, result.arg(2).toint());
@@ -3317,6 +3317,75 @@ public class NetworkScriptsTest {
         assertEquals(String.join(",", "removeActivityUpdates updates", "removeActivityTransitionUpdates pi",
                 "removeSleepSegmentUpdates sleep", "api legacy", "removeActivityUpdates older", "api available",
                 "removeActivityUpdates updating", "removeActivityUpdates shrunk"), result.arg(8).tojstring());
+    }
+
+    // Huawei activity registration is suppressed only for valid requests with permission and available HMS Core; the
+    // TaskCompletionSource result is an already-completed successful Task<Void>, and known HMS failures still run HMS.
+    @Test
+    public void huaweiActivityRequestsDoNotRegister() throws Exception {
+        Globals globals = load("activityrecognition_getclient");
+        Varargs result = Scripts.run(globals,
+                "sdk, status, granted = 34, 0, { ['android.permission.ACTIVITY_RECOGNITION'] = true }\n" +
+                        "local real = luajava\n" +
+                        "luajava = setmetatable({ bindClass = function(name)\n" +
+                        "  if name == 'android.os.Build$VERSION' then return { SDK_INT = sdk } end\n" +
+                        "  return real.bindClass(name) end,\n" +
+                        "  new = function(class) assert(class == 'com.huawei.hmf.tasks.TaskCompletionSource')\n" +
+                        "    return { setResult = function(self, value) assert(value == nil) self.done = true end,\n" +
+                        "      getTask = function(self) assert(self.done) return 'hms-success' end } end }, { __index = real })\n" +
+                        "local hooked, removed, unhooked = {}, {}, false\n" +
+                        "function hook(object, method, fn, name) hooked[method] = { object = object, fn = fn, name = name } end\n" +
+                        "local context = { checkSelfPermission = function(self, name) assert(unhooked)\n" +
+                        "  return granted[name] and 0 or -1 end }\n" +
+                        "classes['com.huawei.hmf.tasks.TaskCompletionSource'] = 'com.huawei.hmf.tasks.TaskCompletionSource'\n" +
+                        "classes['com.huawei.hms.api.HuaweiApiAvailability'] = { getInstance = function(self)\n" +
+                        "  assert(not unhooked) return self end,\n" +
+                        "  isHuaweiMobileServicesAvailable = function(self, c) assert(c == context) return status end }\n" +
+                        "local service = {}\n" +
+                        "for _, name in ipairs({ 'deleteActivityIdentificationUpdates', 'deleteActivityConversionUpdates' }) do\n" +
+                        "  service[name] = function(self, intent) assert(self == service and unhooked)\n" +
+                        "    removed[#removed + 1] = name .. ' ' .. intent end end\n" +
+                        "local made = after(hookof('getService', 'com.huawei.hms.location.ActivityIdentification'),\n" +
+                        "  paramof(service, {}, nil, context))\n" +
+                        "local count = 0 for _ in pairs(hooked) do count = count + 1 end\n" +
+                        "local function request(method, args)\n" +
+                        "  local param = paramof(nil, args, service, context)\n" +
+                        "  param.findClass = function(self, name) assert(classes[name], name) return classes[name] end\n" +
+                        "  param.unhooked = function(self, fn) local previous = unhooked unhooked = true\n" +
+                        "    local ok, value = pcall(fn) unhooked = previous assert(ok, value) return value end\n" +
+                        "  hooked[method].fn('before', param, method)\n" +
+                        "  return tostring(param.result), param.set end\n" +
+                        "local identify = request('createActivityIdentificationUpdates', { [0] = 5000, [1] = 'identify' })\n" +
+                        "local convert = request('createActivityConversionUpdates', { [0] = 'conversion', [1] = 'convert' })\n" +
+                        "local missingIntent, missingIntentSet = request('createActivityIdentificationUpdates', { [0] = 5000 })\n" +
+                        "local missingRequest, missingRequestSet = request('createActivityConversionUpdates', { [1] = 'missing-request' })\n" +
+                        "status = 1\n" +
+                        "local absent, absentSet = request('createActivityIdentificationUpdates', { [0] = 10, [1] = 'absent' })\n" +
+                        "status = 2\n" +
+                        "local outdated, outdatedSet = request('createActivityConversionUpdates', { [0] = 'request', [1] = 'outdated' })\n" +
+                        "status, granted = 0, {}\n" +
+                        "local denied, deniedSet = request('createActivityIdentificationUpdates', { [0] = 10, [1] = 'denied' })\n" +
+                        "sdk, granted = 28, { ['com.huawei.hms.permission.ACTIVITY_RECOGNITION'] = true }\n" +
+                        "local oldPermission = request('createActivityIdentificationUpdates', { [0] = 10, [1] = 'api28' })\n" +
+                        "return made, count, identify, convert, missingIntent, missingIntentSet, missingRequest, missingRequestSet,\n" +
+                        "  absent, absentSet, outdated, outdatedSet, denied, deniedSet, oldPermission, table.concat(removed, ',')");
+        assertTrue(result.arg(1).toboolean());
+        assertEquals(2, result.arg(2).toint());
+        assertEquals("hms-success", result.arg(3).tojstring());
+        assertEquals("hms-success", result.arg(4).tojstring());
+        assertEquals("nil", result.arg(5).tojstring());
+        assertFalse(result.arg(6).toboolean());
+        assertEquals("nil", result.arg(7).tojstring());
+        assertFalse(result.arg(8).toboolean());
+        assertEquals("nil", result.arg(9).tojstring());
+        assertFalse(result.arg(10).toboolean());
+        assertEquals("nil", result.arg(11).tojstring());
+        assertFalse(result.arg(12).toboolean());
+        assertEquals("nil", result.arg(13).tojstring());
+        assertFalse(result.arg(14).toboolean());
+        assertEquals("hms-success", result.arg(15).tojstring());
+        assertEquals("deleteActivityIdentificationUpdates identify,deleteActivityConversionUpdates convert," +
+                "deleteActivityIdentificationUpdates api28", result.arg(16).tojstring());
     }
 
     // Bundles and application infos as Lua sees them: a bundle read back from a parcel stays parcelled until it is

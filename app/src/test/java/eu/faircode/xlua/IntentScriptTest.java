@@ -983,6 +983,29 @@ public class IntentScriptTest {
         assertEquals("UTC", utc.arg1().tojstring());
     }
 
+    // Huawei's documented activity callback action is skipped by the existing activity receiver hooks
+    @Test
+    public void huaweiActivityCallbacksAreNotDelivered() throws Exception {
+        Globals skip = skipper();
+        String action = "com.huawei.hms.location.ACTION_PROCESS_LOCATION";
+        deliver(skip, new String[][]{
+                {"dispatchof('ActivityThread.handleReceiver/activity', 'handleReceiver', 1), " +
+                        "{ [0] = dataof(intentof('" + action + "', {})) }", "true", "finish,skip"},
+                {"dispatchof('ActivityThread.handleReceiver/activity', 'handleReceiver', 1), " +
+                        "{ [0] = dataof(intentof('com.example.OTHER', {})) }", "false", ""},
+                {"dispatchof('ActivityThread.handleReceiver/other', 'handleReceiver', 1), " +
+                        "{ [0] = dataof(intentof('" + action + "', {})) }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive/activity', 'performReceive', 7), " +
+                        "{ [0] = intentof('" + action + "', {}), [4] = false, [5] = false }", "true", "skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive/activity', 'performReceive', 7), " +
+                        "{ [0] = intentof('" + action + "', {}), [4] = true, [5] = false }", "false", ""},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/activity', 'performReceive', 10), " +
+                        "{ [0] = intentof('" + action + "', {}), [4] = false, [6] = true }", "true", "skip"},
+                {"dispatchof('ReceiverDispatcher.performReceive.sender/activity', 'performReceive', 10), " +
+                        "{ [0] = intentof('" + action + "', {}), [4] = false, [6] = false }", "false", ""},
+        });
+    }
+
     // The broadcast of a time zone change, which Android sends only when the zone changed, does not reach the receivers,
     // since the fake zone stays the same (see receiver_skip): a receiver of the manifest is finished first, a registered
     // one only when nothing goes back to Android, not of an ordered broadcast or, from Android 14, of one Android does

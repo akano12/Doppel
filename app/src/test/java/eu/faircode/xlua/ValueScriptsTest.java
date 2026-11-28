@@ -2275,6 +2275,123 @@ public class ValueScriptsTest {
         check(globals, "return after_(hookof('extractResult'), paramof(nil))", false, false, null);
     }
 
+    // Awareness returns ActivityRecognitionResult directly from DetectedActivityResponse; this getter must return the
+    // same sanitized activity object as the Intent extractor, with no second extraction path.
+    @Test
+    public void awarenessActivityIsUnknown() throws Exception {
+        Globals globals = load("activityrecognitionresult_extractresult");
+        String result = "com.google.android.gms.location.ActivityRecognitionResult";
+        String response = "com.google.android.gms.awareness.snapshot.DetectedActivityResponse";
+        Scripts.run(globals, "luajava = { new = function(class, ...)\n" +
+                "    return { class = class, args = { ... }, n = select('#', ...) } end,\n" +
+                "  newInstance = function(name) local list = { class = name } list.add = function(self, v) self[#self + 1] = v end\n" +
+                "    return list end }\n" +
+                "local base = paramof\n" +
+                "function paramof(...) local param = base(...)\n" +
+                "  param.findClass = function(self, name) return name end\n" +
+                "  param.isInstance = function(self, object, name) return object ~= nil and object.class == name end\n" +
+                "  return param end\n" +
+                "clocks = { ['java.lang.System'] = { currentTimeMillis = function(self) return 3000 end },\n" +
+                "  ['android.os.SystemClock'] = { elapsedRealtime = function(self) return 2000 end } }");
+        Scripts.run(globals, "local result = '" + result + "'\n" +
+                "function field(name, type, modifiers, value) return { getType = function(self) return type end,\n" +
+                "  getModifiers = function(self) return modifiers end, setAccessible = function(self, on) self.on = on end,\n" +
+                "  getInt = function(self, object) assert(self.on and object.real) return value end,\n" +
+                "  setInt = function(self, object, v) assert(self.on and object.n == 5) object[name] = v end } end\n" +
+                "fields = { length = 5, field('activities', 'java.util.List', 0), field('time', 'long', 0),\n" +
+                "  field('elapsed', 'long', 0), field('detector', 'int', 0, 7), field('VERSION', 'int', 25, 9) }\n" +
+                "local real = luajava\n" +
+                "luajava.bindClass = function(name) if clocks[name] then return clocks[name] end\n" +
+                "  return { getDeclaredFields = function(class) assert(class == result) return fields end,\n" +
+                "    getName = function(type) return type end } end");
+        Varargs found = Scripts.run(globals, "local result = { class = '" + result + "', real = true }\n" +
+                "local response = { class = '" + response + "', getActivityRecognitionResult = function(self) return result end }\n" +
+                "local param = paramof(result)\n" +
+                "local restricted = after(hookof('getActivityRecognitionResult'), param)\n" +
+                "return restricted, param.set, param.result.class, param.result.args[1][1].args[1],\n" +
+                "  param.result.args[1][1].args[2], param.result.args[2], param.result.args[3], param.result.detector,\n" +
+                "  param.result.n, after(hookof('getActivityRecognitionResult'), paramof({ class = 'else' }))");
+        assertTrue(found.arg(1).toboolean());
+        assertTrue(found.arg(2).toboolean());
+        assertEquals(result, found.arg(3).tojstring());
+        assertEquals(4, found.arg(4).toint());
+        assertEquals(100, found.arg(5).toint());
+        assertEquals(3000, found.arg(6).toint());
+        assertEquals(2000, found.arg(7).toint());
+        assertEquals(7, found.arg(8).toint());
+        assertEquals(5, found.arg(9).toint());
+        assertFalse(found.arg(10).toboolean());
+    }
+
+    // The activity fences of Awareness tell the fake unknown activity alone: during(UNKNOWN), which the snapshots always
+    // give, is always true, while the fences of the other activities and of a change, which never happens, are false; a
+    // fence the script cannot combine is left to Play services, which answers for the fake activity too
+    @Test
+    public void activityFencesOfAwarenessFollowTheFakeActivity() throws Exception {
+        Globals globals = load("detectedactivityfence");
+        Scripts.run(globals, "luajava = { bindClass = function(name)\n" +
+                "  assert(name == 'com.google.android.gms.awareness.fence.AwarenessFence')\n" +
+                "  return { ['and'] = function(fences) return { both = fences[1], inverse = fences[2] } end,\n" +
+                "    ['or'] = function(fences) return { either = fences[1], inverse = fences[2] } end,\n" +
+                "    ['not'] = function(fence) return { negation = fence } end }\n" +
+                "end }");
+        // during(WALKING, RUNNING): false, since the fake activity is neither
+        Varargs walking = Scripts.run(globals,                 "local param = paramof({ fence = true }, { [0] = { 7, 8, length = 2 } })\n" +
+                "local restricted = after(hookof('during'), param)\n" +
+                "return restricted, param.set, param.result.both, param.result.either, param.result.inverse.negation");
+        assertTrue(walking.arg(1).toboolean());
+        assertTrue(walking.arg(2).toboolean());
+        assertTrue(walking.arg(3).get("fence").toboolean());
+        assertTrue(walking.arg(4).isnil());
+        assertTrue(walking.arg(5).get("fence").toboolean());
+        // during(UNKNOWN), also asked with another activity: true, like the snapshot of the fake unknown activity
+        Varargs unknown = Scripts.run(globals,                 "local param = paramof({ fence = true }, { [0] = { 4, 7, length = 2 } })\n" +
+                "local restricted = after(hookof('during'), param)\n" +
+                "return restricted, param.set, param.result.either, param.result.both, param.result.inverse.negation");
+        assertTrue(unknown.arg(1).toboolean());
+        assertTrue(unknown.arg(2).toboolean());
+        assertTrue(unknown.arg(3).get("fence").toboolean());
+        assertTrue(unknown.arg(4).isnil());
+        assertTrue(unknown.arg(5).get("fence").toboolean());
+        // starting and stopping never happen, also of the fake activity, which changes never
+        for (String method : new String[]{"starting", "stopping"}) {
+            Varargs change = Scripts.run(globals, "local param = paramof({ fence = true }, { [0] = { 4, length = 1 } })\n" +
+                    "local restricted = after(hookof('" + method + "'), param)\n" +
+                    "return restricted, param.set, param.result.both, param.result.either");
+            assertTrue(method, change.arg(1).toboolean());
+            assertTrue(method, change.arg(2).toboolean());
+            assertTrue(method, change.arg(3).get("fence").toboolean());
+            assertTrue(method, change.arg(4).isnil());
+        }
+        // A call without activities is false too, which Android rejects anyway, rather than the real fence
+        Varargs empty = Scripts.run(globals, "local param = paramof({ fence = true }, { [0] = { length = 0 } })\n" +
+                "return after(hookof('during'), param), param.set, param.result.either == nil, param.result.both ~= nil");
+        assertTrue(empty.arg(1).toboolean());
+        assertTrue(empty.arg(2).toboolean());
+        assertTrue(empty.arg(3).toboolean());
+        assertTrue(empty.arg(4).toboolean());
+        // No fence of Play services, an exception of the real call, and other methods of the class stay as they are
+        for (String call : new String[]{"paramof(nil, { [0] = { 7, length = 1 } })",
+                "paramof({ fence = true }, { [0] = { 7, length = 1 } }, nil, 'boom')"}) {
+            Varargs kept = Scripts.run(globals, "local param = " + call + "\n" +
+                    "local restricted = after(hookof('during'), param)\n" +
+                    "return restricted, param.set");
+            assertFalse(call, kept.arg(1).toboolean());
+            assertFalse(call, kept.arg(2).toboolean());
+        }
+        Varargs other = Scripts.run(globals, "local param = paramof({ fence = true }, { [0] = { 7, length = 1 } })\n" +
+                "return after(hookof('other'), param), param.set");
+        assertFalse(other.arg(1).toboolean());
+        assertFalse(other.arg(2).toboolean());
+        // When the fences of the class cannot be combined, the real fence stays rather than none, like a device whose
+        // Play services has activity recognition but no fence for it
+        Scripts.run(globals, "luajava = { bindClass = function(name) error('missing ' .. name) end }");
+        Varargs unbound = Scripts.run(globals, "local param = paramof({ fence = true }, { [0] = { 7, length = 1 } })\n" +
+                "return after(hookof('during'), param), param.set");
+        assertFalse(unbound.arg(1).toboolean());
+        assertFalse(unbound.arg(2).toboolean());
+    }
+
     // The activity of HMS is OTHERS at 100, in a mutable list, detected now and not at the time of the real response, and
     // its conversions are none; without the members there is no response rather than the real one, and an intent
     // without one stays so; the creators fake the same, which getDataFromIntent then fakes the same again, and without

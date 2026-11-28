@@ -184,8 +184,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
   before it the one of Play services), for an interval below 0 or on a device without Play services. The results of a
   registration from before the restriction which the app does not repeat reach no receivers, except registered ones of
   an ordered broadcast or, from Android 14, one Android waits for, which like a service get the fake unknown activity.
-  Requests of HMS still deliver, with the results faked; Awareness gives the fake unknown activity, but its activity
-  fences still follow the real activity
+  Requests of HMS still deliver, with the results faked; Awareness gives the fake unknown activity, and its activity
+  fences are true of it alone: those of the other activities and of the changes are false, also in the callbacks and
+  the queries of the app, which then agree with the snapshots
 * **Get location**: fake location, no geofence events (their receivers are not called, except registered ones of an ordered broadcast or, from Android 14, one Android waits for, which like a service get an event without a transition or fences), no NMEA messages or raw GNSS measurements, no location of Wi-Fi access points (RTT), and no location of photos and videos, except those the app ships in its own APK.
   Do not restrict it for camera, gallery and photo editing apps whose photos should keep their location: what such
   an app saves, like an edited copy, is saved without it
@@ -325,9 +326,9 @@ The details are in [hooks.json](app/src/main/assets/hooks.json).
 * *Use analytics* and some other hooks hook libraries inside apps, which only works when the app did not
   [obfuscate](https://developer.android.com/studio/build/shrink-code.html) their names. An app that obfuscated
   AndroidX ExifInterface reads the location of photos like one reading their bytes itself, and one that obfuscated
-  Play services gets the real activity of Awareness snapshots and has its geofences watched at the real region; it
-  still gets no activity results or geofence events. Services of every app get the intents of those at the time of
-  each, with the fake unknown activity, no transitions and an event without fences.
+  Play services gets the real activity of Awareness snapshots and fences and has its geofences watched at the real
+  region; it still gets no activity results or geofence events. Services of every app get the intents of those at the
+  time of each, with the fake unknown activity, no transitions and an event without fences.
   The Firebase, Segment, Amazon, Facebook, AppLovin and OneSignal SDKs store the opt-outs and consents *Use analytics*
   sets, so collection stays off after the restriction is removed, until the app turns it on again or its data is
   cleared, and the crashes Crashlytics kept on the device are not sent by themselves; AppsFlyer stores that it was

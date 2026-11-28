@@ -37,6 +37,10 @@ local REQUESTS = {
     requestActivityTransitionUpdates = { remove = 'removeActivityTransitionUpdates', intent = 1, request = 0 },
     requestSleepSegmentUpdates = { remove = 'removeSleepSegmentUpdates', intent = 0 },
 }
+local HMS_REQUESTS = {
+    createActivityIdentificationUpdates = { remove = 'deleteActivityIdentificationUpdates', intent = 1 },
+    createActivityConversionUpdates = { remove = 'deleteActivityConversionUpdates', intent = 1, request = 0 },
+}
 
 -- The results of isGooglePlayServicesAvailable, with the minimum version the client connects with too, for which the
 -- library does not register the request: missing, to be updated, disabled and invalid; while Play services updates
@@ -47,10 +51,12 @@ local UNAVAILABLE = { [1] = true, [2] = true, [3] = true, [9] = true }
 -- refuses the request, which then goes on like without the hook: from Android 10 the one of Android, which Android
 -- grants by itself to apps made for Android 9 and older which ask the one of Play services, before 10 the one of Play
 -- services
-local function denied(param)
+local function denied(param, huawei)
     local context = param:getApplicationContext()
     local permission = (luajava.bindClass('android.os.Build$VERSION').SDK_INT >= 29 and
-            'android.permission.ACTIVITY_RECOGNITION' or 'com.google.android.gms.permission.ACTIVITY_RECOGNITION')
+            'android.permission.ACTIVITY_RECOGNITION' or
+            (huawei and 'com.huawei.hms.permission.ACTIVITY_RECOGNITION' or
+                    'com.google.android.gms.permission.ACTIVITY_RECOGNITION'))
     return param:unhooked(function()
         return context:checkSelfPermission(permission) ~= 0
     end)
@@ -75,16 +81,43 @@ local function refused(param)
     return ok and UNAVAILABLE[status] == true
 end
 
+-- If HMS Core is known to be unavailable, preserve the SDK's own failure and resolution behavior.
+local function huaweiRefused(param)
+    if denied(param, true) then
+        return true
+    end
+    local context = param:getApplicationContext()
+    local ok, status = pcall(function()
+        local availability = param:findClass('com.huawei.hms.api.HuaweiApiAvailability')
+        return availability:getInstance():isHuaweiMobileServicesAvailable(context)
+    end)
+    return not ok or status ~= 0
+end
+
 function after(h, param)
     local name = h:getMethodName()
-    if name ~= 'getClient' and name ~= nil then
+    local class = h:getClassName()
+    local requests
+    if class == 'com.google.android.gms.location.ActivityRecognition' or
+            class == 'com.google.android.gms.location.ActivityRecognitionClient' then
+        if name ~= 'getClient' and name ~= nil then
+            return false
+        end
+        requests = REQUESTS
+    elseif class == 'com.huawei.hms.location.ActivityIdentification' or
+            class == 'com.huawei.hms.location.ActivityIdentificationService' then
+        if name ~= 'getService' and name ~= nil then
+            return false
+        end
+        requests = HMS_REQUESTS
+    else
         return false
     end
-    local client = (name == 'getClient' and param:getResult() or param:getThis())
+    local client = ((name == 'getClient' or name == 'getService') and param:getResult() or param:getThis())
     if client == nil then
         return false
     end
-    for method in pairs(REQUESTS) do
+    for method in pairs(requests) do
         hook(client, method, unregistered, method)
     end
     return true
@@ -93,17 +126,25 @@ end
 -- A registration of the same PendingIntent which Play services kept from before the restriction is removed, so it sends
 -- nothing either: force stopping the app cancels its PendingIntents only from Android 15 with the flag stayStopped
 function unregistered(when, param, method)
-    local request = REQUESTS[method]
+    local request = REQUESTS[method] or HMS_REQUESTS[method]
+    local huawei = HMS_REQUESTS[method] ~= nil
     local intent = param:getArgument(request.intent)
     if when ~= 'before' or intent == nil or (request.request ~= nil and param:getArgument(request.request) == nil) or
-            (request.interval ~= nil and param:getArgument(request.interval) < 0) or refused(param) then
+            (not huawei and request.interval ~= nil and param:getArgument(request.interval) < 0) or
+            (huawei and huaweiRefused(param)) or (not huawei and refused(param)) then
         return
     end
     local client = param:getThis()
     pcall(param.unhooked, param, function()
         client[request.remove](client, intent)
     end)
-    param:setResult(param:findClass('com.google.android.gms.tasks.Tasks'):forResult(nil))
+    if huawei then
+        local source = luajava.new(param:findClass('com.huawei.hmf.tasks.TaskCompletionSource'))
+        source:setResult(nil)
+        param:setResult(source:getTask())
+    else
+        param:setResult(param:findClass('com.google.android.gms.tasks.Tasks'):forResult(nil))
+    end
 end
 
 -- The request of activity updates of the older ActivityRecognitionApi, once its GoogleApiClient is connected to the API,
@@ -120,7 +161,7 @@ function before(h, param)
         return false
     end
     local client, interval, intent = param:getArgument(0), param:getArgument(1), param:getArgument(2)
-    if client == nil or interval < 0 or intent == nil or denied(param) then
+    if client == nil or interval < 0 or intent == nil or denied(param, false) then
         return false
     end
     local api = param:findClass('com.google.android.gms.location.ActivityRecognition').API

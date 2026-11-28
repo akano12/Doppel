@@ -346,6 +346,10 @@ public class HookDefinitionsTest {
             "SleepSegmentEvent.extractEvents", "SleepClassifyEvent.extractEvents",
             "ActivityRecognitionResult.createFromParcel", "ActivityTransitionResult.createFromParcel",
             "ActivityRecognition.getClient", "ActivityRecognition.getClient/activity", "ActivityRecognitionApi.requestActivityUpdates",
+            "DetectedActivityResponse.getActivityRecognitionResult",
+            "ActivityIdentification.getService", "ActivityIdentification.getService/activity",
+            "ActivityIdentificationService.createActivityIdentificationUpdates",
+            "ActivityIdentificationService.createActivityConversionUpdates",
             "LocationJsonUtil.parseLocationFromJsonObject", "LocationResult.createFromParcel", "LocationResult.create",
             "ActivityIdentificationResponse.getDataFromIntent", "ActivityConversionResponse.getDataFromIntent",
             "ActivityIdentificationResponse.createFromParcel", "ActivityConversionResponse.createFromParcel",
@@ -2095,6 +2099,57 @@ public class HookDefinitionsTest {
         assertEquals("com.google.android.gms.common.api.PendingResult",
                 hook("ActivityRecognitionApi.requestActivityUpdates").getString("returnType"));
         assertEquals("Determine.Activity", hook("ActivityRecognitionApi.requestActivityUpdates").getString("group"));
+        // The Awareness snapshot returns the same activity result type as ActivityRecognitionResult.extractResult
+        check("DetectedActivityResponse.getActivityRecognitionResult", "com.google.android.gms.awareness.snapshot.DetectedActivityResponse " +
+                "getActivityRecognitionResult() @activityrecognitionresult_extractresult 28- optional");
+        assertEquals("Determine.Activity", hook("DetectedActivityResponse.getActivityRecognitionResult").getString("group"));
+        assertEquals(28, hook("DetectedActivityResponse.getActivityRecognitionResult").getInt("minSdk"));
+        // The activity fences of Awareness, which tell the fake unknown activity instead of the real one
+        for (String method : new String[]{"during", "starting", "stopping"})
+            check("DetectedActivityFence." + method, "com.google.android.gms.awareness.fence.DetectedActivityFence " +
+                    method + "(int[]) @detectedactivityfence 28- optional");
+        for (String method : new String[]{"during", "starting", "stopping"}) {
+            assertEquals("Determine.Activity", hook("DetectedActivityFence." + method).getString("group"));
+            assertTrue(hook("DetectedActivityFence." + method).getBoolean("optional"));
+        }
+        // Huawei's documented callback action shares the existing GMS activity receiver hooks
+        String receiver = "android.app.LoadedApk$ReceiverDispatcher ";
+        String receive = "performReceive(" + args;
+        for (String name : new String[]{"ActivityThread.handleReceiver/activity", "ReceiverDispatcher.performReceive/activity",
+                "ReceiverDispatcher.performReceive.sender/activity"}) {
+            assertEquals("Determine.Activity", hook(name).getString("group"));
+            assertEquals("android", hook(name).getString("excludePackages"));
+        }
+        check("ActivityThread.handleReceiver/activity",
+                "android.app.ActivityThread handleReceiver(android.app.ActivityThread$ReceiverData) @receiver_skip 27-");
+        check("ReceiverDispatcher.performReceive/activity", receiver + receive + "int) @receiver_skip 27-33");
+        check("ReceiverDispatcher.performReceive.sender/activity", receiver + receive +
+                "boolean,int,int,java.lang.String) @receiver_skip 34-");
+        // The Huawei action is handled by the same script, without another hook on each framework method
+        // Huawei Activity Identification factory, constructors, and registrations
+        for (String[] variant : new String[][]{{"", "android.content.Context"}, {"/activity", "android.app.Activity"}}) {
+            check("ActivityIdentification.getService" + variant[0], "com.huawei.hms.location.ActivityIdentification " +
+                    "getService(" + variant[1] + ") @activityrecognition_getclient 28- optional");
+            assertEquals("com.huawei.hms.location.ActivityIdentificationService",
+                    hook("ActivityIdentification.getService" + variant[0]).getString("returnType"));
+            JSONObject constructor = hook("ActivityIdentificationService.constructor" + variant[0]);
+            assertEquals("com.huawei.hms.location.ActivityIdentificationService", constructor.getString("className"));
+            assertFalse(constructor.has("methodName"));
+            assertEquals(variant[1], constructor.getJSONArray("parameterTypes").getString(0));
+            assertEquals("@activityrecognition_getclient", constructor.getString("luaScript"));
+            assertEquals(28, constructor.getInt("minSdk"));
+        }
+        check("ActivityIdentificationService.createActivityIdentificationUpdates",
+                "com.huawei.hms.location.ActivityIdentificationService createActivityIdentificationUpdates(long,android.app.PendingIntent) " +
+                        "@activityrecognition_getclient 28- optional");
+        check("ActivityIdentificationService.createActivityConversionUpdates",
+                "com.huawei.hms.location.ActivityIdentificationService createActivityConversionUpdates(" +
+                        "com.huawei.hms.location.ActivityConversionRequest,android.app.PendingIntent) @activityrecognition_getclient 28- optional");
+        for (String name : new String[]{"ActivityIdentificationService.createActivityIdentificationUpdates",
+                "ActivityIdentificationService.createActivityConversionUpdates"}) {
+            assertEquals("com.huawei.hmf.tasks.Task", hook(name).getString("returnType"));
+            assertEquals("Determine.Activity", hook(name).getString("group"));
+        }
         // The activity and its conversions of HMS, like those of Play services, also by their creators
         for (String c : new String[]{"ActivityIdentificationResponse", "ActivityConversionResponse"}) {
             check(c + ".getDataFromIntent", "com.huawei.hms.location." + c + " getDataFromIntent(android.content.Intent) " +
