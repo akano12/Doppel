@@ -22,6 +22,7 @@ package eu.faircode.xlua
 import android.content.Context
 import android.content.DialogInterface
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -32,6 +33,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.res.ResourcesCompat
 import androidx.annotation.AttrRes
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
@@ -80,11 +82,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.createBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -1118,6 +1123,22 @@ private fun PaletteRow(
 }
 
 @Composable
+private fun LauncherIcon(icon: Int, modifier: Modifier = Modifier) {
+    val resources = LocalResources.current
+    val density = LocalDensity.current
+    val size = with(density) { 40.dp.roundToPx() }
+    val bitmap = remember(icon, size, resources) {
+        createBitmap(size, size).also { bitmap ->
+            ResourcesCompat.getDrawable(resources, icon, null)?.let { drawable ->
+                drawable.setBounds(0, 0, size, size)
+                drawable.draw(Canvas(bitmap))
+            }
+        }.asImageBitmap()
+    }
+    Image(bitmap, contentDescription = null, modifier = modifier)
+}
+
+@Composable
 private fun IconRow(selected: Int, onIcon: (Int) -> Unit) {
     Row(
         Modifier
@@ -1166,11 +1187,7 @@ private fun IconRow(selected: Int, onIcon: (Int) -> Unit) {
                             .padding(4.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painterResource(icon),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        LauncherIcon(icon, Modifier.fillMaxSize())
                     }
                 }
             }

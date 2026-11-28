@@ -164,7 +164,7 @@ internal fun AppIcon(packageName: String, icon: Int, size: Dp, modifier: Modifie
             .clearAndSetSemantics {}
     ) {
         if (current == null)
-            Icon(painterResource(android.R.drawable.sym_def_app_icon), null, Modifier.fillMaxSize())
+            Icon(painterResource(R.drawable.ic_apps), null, Modifier.fillMaxSize())
         else
             Image(current.asImageBitmap(), null, Modifier.fillMaxSize())
     }

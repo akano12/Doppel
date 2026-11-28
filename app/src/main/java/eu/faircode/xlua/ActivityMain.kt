@@ -322,13 +322,18 @@ class ActivityMain : ActivityBase(), Ui.Anchored {
 }
 
 // A tab of the bar, in the order the menu had them
-private class NavTab(val id: Int, @DrawableRes val icon: Int, @StringRes val title: Int)
+private class NavTab(
+    val id: Int,
+    @DrawableRes val icon: Int,
+    @StringRes val title: Int,
+    @DrawableRes val selectedIcon: Int = icon
+)
 
 private val NavTabs = listOf(
-    NavTab(R.id.nav_apps, R.drawable.ic_nav_apps, R.string.nav_apps),
+    NavTab(R.id.nav_apps, R.drawable.ic_grid_view, R.string.nav_apps, R.drawable.ic_grid_view_filled),
     NavTab(R.id.nav_activity, R.drawable.ic_timeline, R.string.nav_activity),
     NavTab(R.id.nav_hooks, R.drawable.ic_data_object, R.string.nav_hooks),
-    NavTab(R.id.nav_settings, R.drawable.ic_nav_settings, R.string.nav_settings)
+    NavTab(R.id.nav_settings, R.drawable.ic_settings, R.string.nav_settings, R.drawable.ic_settings_filled)
 )
 
 // The bar of the tabs, floating as a pill: the selected tab has its icon next to its label and the width it needs,
@@ -470,7 +475,7 @@ private fun NavTabItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                painterResource(tab.icon),
+                painterResource(if (selected) tab.selectedIcon else tab.icon),
                 null,
                 Modifier.size(dimensionResource(R.dimen.nav_icon_size)),
                 tint = content
