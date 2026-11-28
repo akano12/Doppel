@@ -4065,7 +4065,7 @@ public class DeviceValuesScriptTest {
 
     // Native code gets the fake zone by TZ, set at the start after System.getenv() keeps the environment, also when the
     // default is the fake zone already, but not over a TZ the app set and not in system server; Java does not see it by
-    // getenv and environ, but sees a TZ the app set
+    // getenv and environ, but sees a TZ the app set; removing TZ keeps the fake one
     @Test
     public void timeZoneForNativeCode() throws Exception {
         Globals globals = load("timezone");
@@ -4113,6 +4113,32 @@ public class DeviceValuesScriptTest {
                 (String[]) result.arg(2).checkuserdata(String[].class));
         assertFalse(Scripts.run(globals, "return run(hookof('Linux.environ/timezone', 'environ'), " +
                 "paramof(arrayof('PATH=/system/bin', 'TZ=America/New_York'), {}))").arg1().toboolean());
+
+        // An app removing TZ keeps the fake one, else tzset reads the property of the device again; other variables go
+        result = Scripts.run(globals, "local called = false\n" +
+                "local param = paramof(nil, { [0] = 'TZ' })\n" +
+                "param.setResult = function(self, value) called = true self.result = value end\n" +
+                "local restricted, old, new = before(hookof('Os.unsetenv/timezone', 'unsetenv', 'android.system.Os'), param)\n" +
+                "return restricted, called, old, new, param.result");
+        assertTrue(result.arg1().toboolean());
+        assertTrue(result.arg(2).toboolean());
+        assertEquals("TZ", result.arg(3).tojstring());
+        assertEquals("UTC", result.arg(4).tojstring());
+        assertTrue(result.arg(5).isnil());
+        result = Scripts.run(globals, "local called = false\n" +
+                "local param = paramof(nil, { [0] = 'ZONE' })\n" +
+                "param.setResult = function(self, value) called = true end\n" +
+                "local restricted = before(hookof('Os.unsetenv/timezone', 'unsetenv', 'android.system.Os'), param)\n" +
+                "return restricted, called");
+        assertFalse(result.arg1().toboolean());
+        assertFalse(result.arg(2).toboolean());
+        // A fake zone set by the user is the one kept
+        result = Scripts.run(globals, "local param = paramof(nil, { [0] = 'TZ' })\n" +
+                "param.getSetting = function(self, name) return 'Asia/Tokyo' end\n" +
+                "param.setResult = function(self, value) end\n" +
+                "return before(hookof('Os.unsetenv/timezone', 'unsetenv', 'android.system.Os'), param)");
+        assertTrue(result.arg1().toboolean());
+        assertEquals("Asia/Tokyo", result.arg(3).tojstring());
     }
 
     // The Java system properties get the kernel release of the newest AOSP build and lose the model and build in http.agent

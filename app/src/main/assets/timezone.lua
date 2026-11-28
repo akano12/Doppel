@@ -45,7 +45,17 @@ end
 -- and its id is kept for the getters, which give back the zone the app set, even the zone of the device (the app knows
 -- that one already); any other zone is replaced, like the real zone the process had before the hooks.
 function before(hook, param)
-    if hook:getMethodName() ~= 'setDefault' then
+    local method = hook:getMethodName()
+    if method == 'unsetenv' then
+        -- An app removing TZ gives native code the zone of the device again, since tzset then reads the system property;
+        -- the fake TZ stays, so localtime of bionic, which SQLite, Flutter and JNI libraries use, keeps the fake zone.
+        -- A TZ the app sets itself stays (see below).
+        if param:getArgument(0) ~= 'TZ' then
+            return false
+        end
+        param:setResult(nil)
+        return true, 'TZ', fakeid(param)
+    elseif method ~= 'setDefault' then
         return false
     end
 
@@ -105,8 +115,8 @@ function after(hook, param)
         -- the zone from TZ before the property of the zone, which Java hooks cannot change. A TZ the app set itself
         -- stays. System.getenv() keeps the environment of the start, so it is read before. Not in system server, where
         -- other threads could read the environment while setenv changes it.
-        -- shortcut: an app setting TZ itself without overwriting, or to the fake zone, reads no TZ back, and one
-        -- removing TZ gives native code the real zone again; hook Linux.setenv and unsetenv when apps do that
+        -- shortcut: an app setting TZ itself without overwriting, or to the fake zone, reads no TZ back; Os.unsetenv is
+        -- hooked, which keeps the fake TZ here, but native code of the app (JNI) can still change or remove TZ itself
         luajava.bindClass('java.lang.System'):getenv()
         luajava.bindClass('android.system.Os'):setenv('TZ', fakeid(param), false)
     end

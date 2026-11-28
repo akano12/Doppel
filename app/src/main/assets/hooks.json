@@ -34525,7 +34525,8 @@
     "luaScript": "@timezone"
   },
   // Native code gets the fake zone by TZ, which timezone sets at the start; Java does not see it, by getenv of
-  // System and Os and by Os.environ (System.getenv() keeps the environment of the start)
+  // System and Os and by Os.environ (System.getenv() keeps the environment of the start). Removing TZ keeps it too,
+  // else tzset, which localtime of bionic uses, falls back to persist.sys.timezone
   {
     "collection": "Privacy",
     "group": "Read.Timezone",
@@ -34555,6 +34556,25 @@
     "parameterTypes": [],
     "returnType": "java.lang.String[]",
     "minSdk": 27,
+    "usage": false,
+    "settings": [
+      "value.timezone"
+    ],
+    "excludePackages": "android",
+    "luaScript": "@timezone"
+  },
+  {
+    "collection": "Privacy",
+    "group": "Read.Timezone",
+    "name": "Os.unsetenv/timezone",
+    "author": "akano12",
+    "className": "android.system.Os",
+    "methodName": "unsetenv",
+    "parameterTypes": [
+      "java.lang.String"
+    ],
+    "returnType": "void",
+    "minSdk": 28,
     "usage": false,
     "settings": [
       "value.timezone"

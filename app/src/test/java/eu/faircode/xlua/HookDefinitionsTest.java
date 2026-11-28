@@ -906,9 +906,14 @@ public class HookDefinitionsTest {
     public void timeZoneBroadcastAndPropertyAreas() throws Exception {
         check("Linux.getenv/timezone", "libcore.io.Linux getenv(java.lang.String) @timezone 27-");
         check("Linux.environ/timezone", "libcore.io.Linux environ() @timezone 27-");
-        for (String name : new String[]{"Linux.getenv/timezone", "Linux.environ/timezone"}) {
+        // Removing TZ keeps the fake one. No filter, though the script names it for getenv: the engine resolves the
+        // first String of a hook of Os as a path of a file, and TZ is no path
+        check("Os.unsetenv/timezone", "android.system.Os unsetenv(java.lang.String) @timezone 28-");
+        for (String name : new String[]{"Linux.getenv/timezone", "Linux.environ/timezone", "Os.unsetenv/timezone"}) {
             assertEquals(name, "Read.Timezone", hook(name).getString("group"));
             assertEquals(name, "android", hook(name).getString("excludePackages"));
+            assertEquals(name, 1, hook(name).optJSONArray("settings").length());
+            assertEquals(name, "value.timezone", hook(name).optJSONArray("settings").getString(0));
         }
         String args = "android.content.Intent,int,java.lang.String,android.os.Bundle,boolean,boolean,";
         check("ActivityThread.handleReceiver/timezone",
