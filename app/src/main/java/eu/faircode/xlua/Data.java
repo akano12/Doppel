@@ -116,6 +116,8 @@ final class Data {
 
     // The service runs another version of the module than this app, or none; the message is for the user
     static class ModuleVersionException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+
         ModuleVersionException(String message) {
             super(message);
         }

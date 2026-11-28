@@ -24,6 +24,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -116,6 +117,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 import java.util.HashSet
@@ -425,7 +427,7 @@ class FragmentApps : FragmentBase() {
 }
 
 
-private class AppsState(private val prefs: android.content.SharedPreferences) {
+private class AppsState(private val prefs: SharedPreferences) {
     fun restore(bundle: Bundle) {
         query = bundle.getString("apps_query", "")
         // The field is shown for the text restored with it
@@ -464,16 +466,16 @@ private class AppsState(private val prefs: android.content.SharedPreferences) {
 
     fun updateFilter(value: AdapterApp.Filter) {
         filter = value
-        prefs.edit().putString(PREF_FILTER, value.name).apply()
+        prefs.edit { putString(PREF_FILTER, value.name) }
     }
 
     fun updateSort(value: AdapterApp.Sort) {
         sort = value
-        prefs.edit().putString(PREF_SORT, value.name).apply()
+        prefs.edit { putString(PREF_SORT, value.name) }
     }
     fun toggle(section: AdapterApp.Section) {
         if (!collapsed.remove(section)) collapsed.add(section)
-        prefs.edit().putString(PREF_COLLAPSED, collapsed.joinToString(",") { it.name }).apply()
+        prefs.edit { putString(PREF_COLLAPSED, collapsed.joinToString(",") { it.name }) }
     }
 
     fun data(): List<AppListItem> {

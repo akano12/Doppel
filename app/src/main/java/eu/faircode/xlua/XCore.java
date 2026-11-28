@@ -726,6 +726,8 @@ class XCore {
     // The service runs the module it started with until a reboot, so after an update its parcels have the layout of the
     // version before, which the engine of an app started since reads as those of its own: it asks the version first
     static final class ServiceVersionException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+
         ServiceVersionException(String message, Throwable cause) {
             super(message, cause);
         }
