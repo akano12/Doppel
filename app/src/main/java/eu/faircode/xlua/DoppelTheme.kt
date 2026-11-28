@@ -22,6 +22,7 @@ package eu.faircode.xlua
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.util.TypedValue
 import androidx.annotation.AttrRes
 import androidx.compose.foundation.Image
@@ -90,10 +91,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DecodeFormat
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.bumptech.glide.request.RequestOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -146,7 +143,7 @@ internal fun rememberNavSpace(): Dp {
     }
 }
 
-// The icon of an app, loaded with Glide like the views of the rows loaded it
+// The app icon from its resources, rasterized at the size of the row
 @Composable
 internal fun AppIcon(packageName: String, icon: Int, size: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -155,14 +152,11 @@ internal fun AppIcon(packageName: String, icon: Int, size: Dp, modifier: Modifie
     val bitmap by produceState<Bitmap?>(null, packageName, icon, pixels) {
         value = withContext(Dispatchers.IO) {
             if (icon <= 0) null else runCatching {
-                Glide.with(context.applicationContext)
-                    .asBitmap()
-                    .apply(RequestOptions().format(DecodeFormat.PREFER_RGB_565))
-                    .load("android.resource://$packageName/$icon")
-                    .diskCacheStrategy(DiskCacheStrategy.NONE)
-                    .override(pixels, pixels)
-                    .submit()
-                    .get()
+                val drawable = context.packageManager.getApplicationIcon(packageName)
+                val bitmap = Bitmap.createBitmap(pixels, pixels, Bitmap.Config.ARGB_8888)
+                drawable.setBounds(0, 0, pixels, pixels)
+                drawable.draw(Canvas(bitmap))
+                bitmap
             }.getOrNull()
         }
     }

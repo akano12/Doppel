@@ -771,7 +771,7 @@ private fun AppsHeader(
                 Text(
                     text = stringResource(R.string.nav_apps),
                     modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.headlineMedium
+                    style = MaterialTheme.typography.headlineMedium.copy(color = MaterialTheme.colorScheme.onSurface)
                 )
             IconButton(onClick = onToggleSearch) {
                 Icon(
@@ -1074,7 +1074,7 @@ private fun AppRow(
                     Text(
                         appName,
                         Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(color = scheme.onSurface),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
