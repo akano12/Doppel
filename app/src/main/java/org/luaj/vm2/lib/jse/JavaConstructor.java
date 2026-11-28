@@ -23,8 +23,6 @@ package org.luaj.vm2.lib.jse;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
