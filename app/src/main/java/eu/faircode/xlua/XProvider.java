@@ -28,6 +28,7 @@ import android.content.pm.ComponentInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.database.Cursor;
 import android.database.CursorWrapper;
 import android.database.MatrixCursor;
@@ -1758,15 +1759,26 @@ class XProvider {
     }
 
     // The signatures of a package, the oldest signer of a rotated key, like SettingsProvider reads them
-    @SuppressWarnings("deprecation")
     static byte[][] getSignatures(PackageManager pm, String packageName) throws PackageManager.NameNotFoundException {
-        Signature[] signatures = Util.getPackageInfo(pm, packageName, PackageManager.GET_SIGNATURES).signatures;
+        Signature[] signatures = getSignatures(Util.getPackageInfo(pm, packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES));
         if (signatures == null)
             return null;
         byte[][] result = new byte[signatures.length][];
         for (int i = 0; i < signatures.length; i++)
             result[i] = signatures[i].toByteArray();
         return result;
+    }
+
+    // Legacy GET_SIGNATURES returns the oldest certificate on rotation and all current signers otherwise
+    private static Signature[] getSignatures(PackageInfo info) {
+        SigningInfo signingInfo = info.signingInfo;
+        if (signingInfo == null)
+            return null;
+        if (signingInfo.hasMultipleSigners())
+            return signingInfo.getApkContentsSigners();
+        Signature[] history = signingInfo.getSigningCertificateHistory();
+        return (history == null || history.length == 0 ? history : new Signature[]{history[0]});
     }
 
     // The developer of an app (FakeIds.signer), which the service keeps (user -1, like the kept secret), so the
@@ -1983,16 +1995,16 @@ class XProvider {
 
     // The signers of the package with the name of the app, as a set, since Android does not keep their order;
     // null when it is not installed
-    @SuppressWarnings("deprecation")
     static Set<String> getModuleSigners(Context context) {
         long ident = Binder.clearCallingIdentity();
         try {
             PackageInfo pi = Util.getPackageInfo(context.getPackageManager(), BuildConfig.APPLICATION_ID,
-                    PackageManager.GET_SIGNATURES | ReceiverPackage.MATCH_ANY_USER);
-            if (pi.signatures == null || pi.signatures.length == 0)
+                    PackageManager.GET_SIGNING_CERTIFICATES | ReceiverPackage.MATCH_ANY_USER);
+            Signature[] signatures = getSignatures(pi);
+            if (signatures == null || signatures.length == 0)
                 return null;
             Set<String> signers = new HashSet<>();
-            for (Signature signature : pi.signatures)
+            for (Signature signature : signatures)
                 signers.add(signature.toCharsString());
             return signers;
         } catch (PackageManager.NameNotFoundException ignored) {
