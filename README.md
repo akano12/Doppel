@@ -86,19 +86,18 @@ Screenshots
 Installation
 ------------
 
-Doppel needs Android 9 or later and a rooted device with an Xposed framework.
-It uses the [modern Xposed API](https://github.com/libxposed/api) (version 101 or later) when the framework has it, else the legacy API.
+Doppel needs Android 9 or later and a rooted device with LSPosed and a
+[modern libxposed implementation](https://github.com/libxposed/api) (API 101 or later, like Vector).
 
 1. Root the device, like with [Magisk](https://topjohnwu.github.io/Magisk/install.html)
-2. Install and activate an Xposed framework: [LSPosed](https://github.com/LSPosed/LSPosed) or a compatible fork
+2. Install and activate LSPosed/Vector with the modern libxposed API
 3. Install Doppel from the [releases](https://github.com/akano12/Doppel/releases) and enable it in the framework
 4. Reboot
 
 > [!IMPORTANT]
-> In LSPosed, the scope needs *System Framework*, which hosts the Doppel service, and each app you want to restrict;
-> with the legacy API (like EdXposed) also *Settings Storage*.
+> In LSPosed, the scope needs *System Framework*, which hosts the Doppel service, and each app you want to restrict.
 > Add only apps you restrict: LSPosed is loaded into every app in the scope.
-> With the modern API, *In LSPosed scope* on the screen of an app adds it for you.
+> *In LSPosed scope* on the screen of an app adds it for you.
 
 ### Work profiles and other users
 
@@ -432,8 +431,8 @@ scripts/check-service.sh       # on a rooted device or emulator with Doppel: who
 
 How the code fits together (package `eu.faircode.xlua`, kept from XPrivacyLua):
 
-* Entry points: `XLuaModule` for the modern API (*META-INF/xposed/java_init.list*), `XLua` for the legacy API
-  (*assets/xposed_init*); both hand over to `XCore`, through `ModernBackend` or `LegacyBackend`.
+* Entry point: `XLuaModule` for the modern API (*META-INF/xposed/java_init.list*); it hands over to `XCore`,
+  through `ModernBackend`.
 * The service runs in system server: `XCore.hookSettings` hooks `call` and `query` of the settings provider, which
   `XProvider` answers, with its database (`XDatabase`) in */data/system_de/0/xlua*, which no app can see, unlike a
   folder in */data/system*. `XProvider.answers` decides who gets answers: system server, Doppel itself and restricted

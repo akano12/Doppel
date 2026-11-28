@@ -28,8 +28,7 @@ Restrictions of hook definitions which the device does not have, like custom def
 This message means that:
 
 * The Xposed framework is not running: check that it is active in its manager app (like LSPosed).
-* Doppel is not running: check that Doppel is enabled in the manager app, with *System Framework* in its scope
-  (with the legacy Xposed API, like with EdXposed, also *Settings Storage*, see [here](README.md#installation)),
+* Doppel is not running: check that Doppel is enabled in the manager app, with *System Framework* in its scope,
   and restart the device (hard reboot) after installing or updating Doppel.
 * There is a problem with the Doppel service: check the log of the manager app for Doppel problems.
 
