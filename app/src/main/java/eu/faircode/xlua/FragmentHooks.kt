@@ -1039,86 +1039,67 @@ private fun HooksCompactBar(
 ) {
     var filterMenu by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { this.alpha = alpha }
-    ) {
-        Column(Modifier.height(64.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(start = 20.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!largeText)
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                }
-                Box {
-                    IconButton(onClick = { filterMenu = true }) {
-                        Icon(
-                            painterResource(R.drawable.ic_filter),
-                            contentDescription = stringResource(R.string.title_filter)
-                        )
-                    }
-                    DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
-                        HookFilter.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        stringResource(
-                                            R.string.title_count,
-                                            stringResource(option.title),
-                                            counts[option.ordinal]
-                                        )
-                                    )
-                                },
-                                onClick = {
-                                    filterMenu = false
-                                    onFilter(option)
-                                }
+    CompactBar(alpha = alpha) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!largeText)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+        }
+        Box {
+            IconButton(onClick = { filterMenu = true }) {
+                Icon(
+                    painterResource(R.drawable.ic_filter),
+                    contentDescription = stringResource(R.string.title_filter)
+                )
+            }
+            DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                HookFilter.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    R.string.title_count,
+                                    stringResource(option.title),
+                                    counts[option.ordinal]
+                                )
                             )
+                        },
+                        onClick = {
+                            filterMenu = false
+                            onFilter(option)
                         }
-                    }
-                }
-                IconButton(onClick = onSearch) {
-                    Icon(
-                        painterResource(R.drawable.ic_search),
-                        contentDescription = stringResource(R.string.menu_search)
                     )
-                }
-                Box {
-                    IconButton(onClick = { moreMenu = true }) {
-                        Icon(
-                            painterResource(R.drawable.ic_more),
-                            contentDescription = stringResource(R.string.title_more)
-                        )
-                    }
-                    HooksMenu(moreMenu, { moreMenu = false }, onImport, onExport)
                 }
             }
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
+        }
+        IconButton(onClick = onSearch) {
+            Icon(
+                painterResource(R.drawable.ic_search),
+                contentDescription = stringResource(R.string.menu_search)
             )
+        }
+        Box {
+            IconButton(onClick = { moreMenu = true }) {
+                Icon(
+                    painterResource(R.drawable.ic_more),
+                    contentDescription = stringResource(R.string.title_more)
+                )
+            }
+            HooksMenu(moreMenu, { moreMenu = false }, onImport, onExport)
         }
     }
 }

@@ -1210,106 +1210,90 @@ private fun AppsCompactBar(
         stringResource(R.string.title_compact_apps, summary.restricted, summary.total),
         filterText
     )
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { this.alpha = alpha }
-    ) {
-        Column(Modifier.height(64.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(start = 20.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // A small form of the overview, before the title
-                Box(
-                    Modifier
-                        .size(32.dp)
-                        .clearAndSetSemantics {},
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        progress = { summary.percent / 100f },
-                        modifier = Modifier.fillMaxSize(),
-                        strokeWidth = 4.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    CompactBar(alpha = alpha) {
+        // A small form of the overview, before the title
+        Box(
+            Modifier
+                .size(32.dp)
+                .clearAndSetSemantics {},
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                progress = { summary.percent / 100f },
+                modifier = Modifier.fillMaxSize(),
+                strokeWidth = 4.dp,
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.nav_apps),
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            // With large text both lines do not fit in the fixed height of the bar
+            if (!largeText)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+        }
+        Box {
+            IconButton(onClick = { filterMenu = true }) {
+                Icon(
+                    painterResource(R.drawable.ic_filter),
+                    contentDescription = stringResource(R.string.title_filter_by, filterText)
+                )
+            }
+            DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                AdapterApp.Filter.entries.forEach { option ->
+                    val text = stringResource(
+                        R.string.title_count,
+                        stringResource(filterTitle(option)),
+                        counts[option.ordinal]
                     )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.nav_apps),
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    DropdownMenuItem(
+                        text = { Text(text) },
+                        onClick = {
+                            filterMenu = false
+                            state.updateFilter(option)
+                        },
+                        trailingIcon = if (state.filter == option) {
+                            { Icon(painterResource(R.drawable.ic_check), contentDescription = null) }
+                        } else null
                     )
-                    // With large text both lines do not fit in the fixed height of the bar
-                    if (!largeText)
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                }
-                Box {
-                    IconButton(onClick = { filterMenu = true }) {
-                        Icon(
-                            painterResource(R.drawable.ic_filter),
-                            contentDescription = stringResource(R.string.title_filter_by, filterText)
-                        )
-                    }
-                    DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
-                        AdapterApp.Filter.entries.forEach { option ->
-                            val text = stringResource(
-                                R.string.title_count,
-                                stringResource(filterTitle(option)),
-                                counts[option.ordinal]
-                            )
-                            DropdownMenuItem(
-                                text = { Text(text) },
-                                onClick = {
-                                    filterMenu = false
-                                    state.updateFilter(option)
-                                },
-                                trailingIcon = if (state.filter == option) {
-                                    { Icon(painterResource(R.drawable.ic_check), contentDescription = null) }
-                                } else null
-                            )
-                        }
-                    }
-                }
-                IconButton(onClick = onSearch) {
-                    Icon(
-                        painterResource(R.drawable.ic_search),
-                        contentDescription = stringResource(R.string.menu_search)
-                    )
-                }
-                Box {
-                    IconButton(onClick = { moreMenu = true }) {
-                        Icon(
-                            painterResource(R.drawable.ic_more),
-                            contentDescription = stringResource(R.string.title_more)
-                        )
-                    }
-                    DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_bulk)) },
-                            onClick = {
-                                moreMenu = false
-                                onBulk()
-                            }
-                        )
-                    }
                 }
             }
-            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        }
+        IconButton(onClick = onSearch) {
+            Icon(
+                painterResource(R.drawable.ic_search),
+                contentDescription = stringResource(R.string.menu_search)
+            )
+        }
+        Box {
+            IconButton(onClick = { moreMenu = true }) {
+                Icon(
+                    painterResource(R.drawable.ic_more),
+                    contentDescription = stringResource(R.string.title_more)
+                )
+            }
+            DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.menu_bulk)) },
+                    onClick = {
+                        moreMenu = false
+                        onBulk()
+                    }
+                )
+            }
         }
     }
 }

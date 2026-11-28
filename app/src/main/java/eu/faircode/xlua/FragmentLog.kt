@@ -765,91 +765,75 @@ private fun LogCompactBar(
     onSearch: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { this.alpha = alpha }
+    CompactBar(
+        alpha = alpha,
+        startPadding = if (only == null) 20.dp else 4.dp
     ) {
-        Column(Modifier.height(64.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(start = if (only == null) 20.dp else 4.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (only != null) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = stringResource(R.string.title_back)
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!largeText)
-                        Text(
-                            text = data.compactSummary,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                }
-                Bars(
-                    values = data.bars,
-                    description = null,
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(64.dp, 24.dp)
-                        .clearAndSetSemantics {}
+        if (only != null) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    painterResource(R.drawable.ic_arrow_back),
+                    contentDescription = stringResource(R.string.title_back)
                 )
-                Box {
-                    IconButton(onClick = { menu = true }) {
-                        Icon(
-                            painterResource(R.drawable.ic_filter),
-                            contentDescription = stringResource(R.string.title_filter)
-                        )
-                    }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        LogFilter.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(FILTER_TITLES[option.ordinal])) },
-                                onClick = {
-                                    onFilter(option)
-                                    menu = false
-                                },
-                                trailingIcon = if (option == filter) {
-                                    {
-                                        Icon(
-                                            painterResource(R.drawable.ic_check),
-                                            contentDescription = null
-                                        )
-                                    }
-                                } else null
-                            )
-                        }
-                    }
-                }
-                IconButton(onClick = onSearch) {
-                    Icon(
-                        painterResource(R.drawable.ic_search),
-                        contentDescription = stringResource(R.string.menu_search)
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!largeText)
+                Text(
+                    text = data.compactSummary,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+        }
+        Bars(
+            values = data.bars,
+            description = null,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .size(64.dp, 24.dp)
+                .clearAndSetSemantics {}
+        )
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(
+                    painterResource(R.drawable.ic_filter),
+                    contentDescription = stringResource(R.string.title_filter)
+                )
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                LogFilter.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(FILTER_TITLES[option.ordinal])) },
+                        onClick = {
+                            onFilter(option)
+                            menu = false
+                        },
+                        trailingIcon = if (option == filter) {
+                            {
+                                Icon(
+                                    painterResource(R.drawable.ic_check),
+                                    contentDescription = null
+                                )
+                            }
+                        } else null
                     )
                 }
             }
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
+        }
+        IconButton(onClick = onSearch) {
+            Icon(
+                painterResource(R.drawable.ic_search),
+                contentDescription = stringResource(R.string.menu_search)
             )
         }
     }

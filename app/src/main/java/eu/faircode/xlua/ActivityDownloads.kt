@@ -932,89 +932,70 @@ private fun DownloadsCompactBar(
         if (loaded) R.string.title_filter_by else R.string.title_filter,
         downloadFilterLabel(filter, loaded, all, available, installed, updates)
     )
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer { this.alpha = alpha }
-    ) {
-        Column(Modifier.height(64.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(start = 4.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+    CompactBar(alpha = alpha, startPadding = 4.dp) {
+        IconButton(onClick = onBack) {
+            Icon(
+                painterResource(R.drawable.ic_arrow_back),
+                contentDescription = stringResource(R.string.title_back)
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.title_downloads),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!largeText)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+        }
+        Box {
+            IconButton(onClick = { filterMenu = true }) {
+                Icon(
+                    painterResource(R.drawable.ic_filter),
+                    contentDescription = filterDescription
+                )
+            }
+            DropdownMenu(
+                expanded = filterMenu,
+                onDismissRequest = { filterMenu = false }
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        painterResource(R.drawable.ic_arrow_back),
-                        contentDescription = stringResource(R.string.title_back)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.title_downloads),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!largeText)
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                }
-                Box {
-                    IconButton(onClick = { filterMenu = true }) {
-                        Icon(
-                            painterResource(R.drawable.ic_filter),
-                            contentDescription = filterDescription
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = filterMenu,
-                        onDismissRequest = { filterMenu = false }
-                    ) {
-                        DownloadFilter.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        downloadFilterLabel(
-                                            option,
-                                            loaded,
-                                            all,
-                                            available,
-                                            installed,
-                                            updates
-                                        )
-                                    )
-                                },
-                                onClick = {
-                                    filterMenu = false
-                                    onFilter(option)
-                                }
+                DownloadFilter.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                downloadFilterLabel(
+                                    option,
+                                    loaded,
+                                    all,
+                                    available,
+                                    installed,
+                                    updates
+                                )
                             )
+                        },
+                        onClick = {
+                            filterMenu = false
+                            onFilter(option)
                         }
-                    }
-                }
-                IconButton(onClick = onSearch) {
-                    Icon(
-                        painterResource(R.drawable.ic_search),
-                        contentDescription = stringResource(R.string.menu_search)
                     )
                 }
             }
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
+        }
+        IconButton(onClick = onSearch) {
+            Icon(
+                painterResource(R.drawable.ic_search),
+                contentDescription = stringResource(R.string.menu_search)
             )
         }
     }
