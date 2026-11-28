@@ -32,6 +32,7 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.IInterface;
@@ -397,15 +398,7 @@ class XCore {
             }
 
             private void query(XCall call, Context context, String column, String[] selection) throws Throwable {
-                // Other apps get the answer of the settings provider, an error for these columns
-                int caller = answers(call, context);
-                if (caller == XProvider.CALLER_NONE)
-                    return;
-
-                // A column without a method, like xlua., gets no result too
-                String method = column.substring(XProvider.COLUMN.length());
-                boolean permitted = (caller == XProvider.CALLER_PERMITTED);
-                serve(call, "Query " + column, permitted, () -> XProvider.query(context, method, selection, permitted));
+                serveQuery(call, context, column, selection);
             }
 
             @Override
@@ -413,6 +406,58 @@ class XCore {
                 withoutHookFrames(call);
             }
         });
+
+        // Android 10 and later send a query of another process to this variant, which the settings provider overrides,
+        // so the variant above does not run for a query of an app: without this hook the service refuses its probe
+        Method mQueryArgs = null;
+        try {
+            mQueryArgs = clsSet.getMethod("query", Uri.class, String[].class, Bundle.class,
+                    CancellationSignal.class);
+        } catch (NoSuchMethodException ignored) {
+        }
+        if (mQueryArgs != null)
+            backend.hook(mQueryArgs, new XBackend.Callback() {
+                @Override
+                void before(XCall call) {
+                    try {
+                        String[] projection = (String[]) call.args[1];
+                        Bundle queryArgs = (Bundle) call.args[2];
+                        String[] selection = (queryArgs == null ? null :
+                                queryArgs.getStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS));
+                        String sortOrder = (queryArgs == null ? null :
+                                queryArgs.getString(ContentResolver.QUERY_ARG_SQL_SORT_ORDER));
+                        // A query of the app's own code is the settings provider's, see hideService
+                        if (!isColumn(projection) || OWN.equals(sortOrder))
+                            return;
+
+                        enterService();
+                        try {
+                            serveQuery(call, getContext(call.thisObject), projection[0], selection);
+                        } finally {
+                            leaveService();
+                        }
+                    } catch (Throwable ex) {
+                        log(ex);
+                    }
+                }
+
+                @Override
+                void after(XCall call) {
+                    withoutHookFrames(call);
+                }
+            });
+    }
+
+    // Other apps get the answer of the settings provider, an error for these columns
+    private void serveQuery(XCall call, Context context, String column, String[] selection) throws Throwable {
+        int caller = answers(call, context);
+        if (caller == XProvider.CALLER_NONE)
+            return;
+
+        // A column without a method, like xlua., gets no result too
+        String method = column.substring(XProvider.COLUMN.length());
+        boolean permitted = (caller == XProvider.CALLER_PERMITTED);
+        serve(call, "Query " + column, permitted, () -> XProvider.query(context, method, selection, permitted));
     }
 
     // A query of the service has its column first, see Data.query
