@@ -1150,7 +1150,6 @@ class ActivityValues : ActivityBase() {
                     Text(
                         title,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = if (field.title == 0) Mono else FontFamily.Default,
                             textDirection = if (field.title == 0) TextDirection.Ltr else TextDirection.Unspecified
                         ),
                         maxLines = 2,

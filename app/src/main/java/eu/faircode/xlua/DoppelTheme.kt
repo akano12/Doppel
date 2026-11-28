@@ -50,6 +50,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -61,6 +62,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -384,5 +386,9 @@ internal fun DoppelTheme(content: @Composable () -> Unit) {
         errorContainer = themeColor(com.google.android.material.R.attr.colorErrorContainer),
         onErrorContainer = themeColor(com.google.android.material.R.attr.colorOnErrorContainer)
     )
-    MaterialTheme(colorScheme = scheme, typography = DoppelTypography, content = content)
+    MaterialTheme(colorScheme = scheme, typography = DoppelTypography) {
+        CompositionLocalProvider(LocalContentColor provides scheme.onSurface) {
+            content()
+        }
+    }
 }
