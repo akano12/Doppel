@@ -23,19 +23,6 @@
         tools:ignore="DataExtractionRules"
         tools:targetApi="33">
 
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="@string/app_description" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="${xposedminversion}" />
-        <meta-data
-            android:name="xposedscope"
-            android:resource="@array/scopes" />
-
         <!-- The libxposed service delivers its binder through a provider with this authority. The one of the library
              takes it from any app, so ScopeProvider replaces it. Doppel's UI runs after unlock, so it need not start
              before, which would run ApplicationEx before credential storage. Not exported: the framework delivers as root

@@ -55,8 +55,6 @@ android {
         targetSdk = 36
         versionCode = 203
         versionName = '2.3'
-        // The legacy Xposed API version of the manifest, see libs.versions.toml
-        manifestPlaceholders = [xposedminversion: libs.versions.xposed.get()]
         // Tests on a device of what needs Android itself: SQLite and the service, see src/androidTest
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
     }
@@ -164,8 +162,6 @@ dependencies {
     // Provided at runtime by the Xposed framework
     // Modern API: https://github.com/libxposed/api (LSPosed and compatible frameworks)
     compileOnly libs.libxposed.api
-    // Legacy API: Xposed, EdXposed and older LSPosed versions
-    compileOnly libs.xposed.api
 
     testImplementation libs.junit
     testImplementation libs.libxposed.api

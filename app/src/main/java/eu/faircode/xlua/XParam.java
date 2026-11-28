@@ -501,7 +501,7 @@ public class XParam {
 
     // The frames of the hook which made a throwable of a script: of Doppel, LuaJ and the hook frameworks whose names are
     // not obfuscated, and of the reflection which luajava makes it by
-    private static final String[] HOOK_FRAMES = {"eu.faircode.xlua.", "org.luaj.", "de.robv.android.xposed.",
+    private static final String[] HOOK_FRAMES = {"eu.faircode.xlua.", "org.luaj.",
             "io.github.libxposed.", "org.lsposed.", "org.matrix.vector."};
     private static final String[] REFLECTION_FRAMES = {"java.lang.reflect.", "jdk.internal.reflect.", "sun.reflect."};
 

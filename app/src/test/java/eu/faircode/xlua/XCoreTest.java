@@ -74,8 +74,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.io.File;
 
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModuleInterface;
 
@@ -91,47 +89,8 @@ import static org.junit.Assert.fail;
 
 // Hooks installed by the engine, with a backend which records them
 public class XCoreTest {
-    private static XBackend backend(String name) {
-        return new XBackend() {
-            @Override
-            public String getName() {
-                return name;
-            }
-
-            @Override
-            public void hook(Member member, Callback callback) {
-            }
-
-            @Override
-            public void log(String message) {
-            }
-
-            @Override
-            public void log(Throwable ex) {
-            }
-        };
-    }
-
-    // The claim keeps two entry points from both hooking a process, and is gone before the code of the app runs
-    @Test
-    public void claimIsReleasedBeforeTheAppRuns() {
-        XCore.release();
-        assertTrue(XCore.claim(backend("first")));
-        assertEquals("first", System.getProperty("eu.faircode.xlua.engine"));
-        assertTrue(XCore.claim(backend("first")));
-        assertFalse(XCore.claim(backend("second")));
-
-        XCore.release();
-        assertNull(System.getProperty("eu.faircode.xlua.engine"));
-    }
-
-    // A framework of the modern API which counts the hooks and the detaches of the module
+    // A framework of the modern API which counts the hooks of the module
     private final List<Executable> hooked = new ArrayList<>();
-    private int detached = 0;
-
-    private XLuaModule module() {
-        return module(false);
-    }
 
     private XLuaModule module(boolean systemServer) {
         XposedInterface.HookBuilder builder = (XposedInterface.HookBuilder) Proxy.newProxyInstance(
@@ -151,7 +110,7 @@ public class XCoreTest {
                             ? Array.get(Array.newInstance(m.getReturnType(), 1), 0) : null);
                 });
         XLuaModule module = new XLuaModule();
-        module.attachFramework(framework, () -> detached++);
+        module.attachFramework(framework, () -> { });
         module.onModuleLoaded((XposedModuleInterface.ModuleLoadedParam) Proxy.newProxyInstance(
                 getClass().getClassLoader(), new Class<?>[]{XposedModuleInterface.ModuleLoadedParam.class},
                 (proxy, m, args) -> ("getProcessName".equals(m.getName()) ? "test.app"
@@ -177,40 +136,6 @@ public class XCoreTest {
                 });
     }
 
-    // The modern entry point claims a process right before it hooks, not when it is loaded: the AppComponentFactory
-    // of an app runs before onPackageReady and would read the claim; after the release it does not claim again
-    @Test
-    public void modernClaimWaitsForTheFirstHook() {
-        XCore.release();
-        XLuaModule module = module();
-        assertNull(System.getProperty("eu.faircode.xlua.engine"));
-
-        module.onPackageReady(ready("test.app", true));
-        assertEquals("modern", System.getProperty("eu.faircode.xlua.engine"));
-        assertFalse(hooked.isEmpty());
-
-        XCore.release();
-        module.onPackageReady(ready("test.app", true));
-        module.onPackageReady(ready("com.google.android.webview", false));
-        assertNull(System.getProperty("eu.faircode.xlua.engine"));
-        assertEquals(0, detached);
-    }
-
-    // A process the legacy entry point claimed first is left to it, without any hook of the modern one
-    @Test
-    public void modernEntryLeavesALegacyClaim() {
-        XCore.release();
-        XLuaModule module = module();
-        assertTrue(XCore.claim(backend("legacy")));
-
-        module.onPackageReady(ready("test.app", true));
-        module.onPackageReady(ready("test.app", true));
-        assertTrue(hooked.isEmpty());
-        assertEquals(1, detached);
-        assertEquals("legacy", System.getProperty("eu.faircode.xlua.engine"));
-        XCore.release();
-    }
-
     // The hooks are installed by the hook of Android 11 and later, which returns before the application is made;
     // newApplication is hooked too, which installs them before Android 11 and when the hook of Android 11 does not fire
     @Test
@@ -228,28 +153,21 @@ public class XCoreTest {
             assertEquals("newApplication", member.getName());
         int hooks = members.size();
 
-        // Installed when the network security config was made, with the context of the application, and the claim
-        // released before
-        assertTrue(XCore.claim(backend("test")));
+        // Installed when the network security config was made, with the context of the application
         XCall made = new XCall(members.get(0), null, new Object[]{context});
         callbacks.get(0).before(made);
-        assertEquals("test", System.getProperty("eu.faircode.xlua.engine"));
         callbacks.get(0).after(made);
-        assertNull(System.getProperty("eu.faircode.xlua.engine"));
         assertEquals(Collections.singletonList(context), fetched);
 
-        // newApplication then does nothing: no release, no install, no log
+        // newApplication then does nothing: no install, no log
         int installed = members.size();
         int logs = logged.size();
-        assertTrue(XCore.claim(backend("test")));
         XCall application = new XCall(members.get(1), null, new Object[]{null, "test.App", context});
         callbacks.get(1).before(application);
         callbacks.get(1).after(application);
-        assertEquals("test", System.getProperty("eu.faircode.xlua.engine"));
         assertEquals(1, fetched.size());
         assertEquals(installed, members.size());
         assertEquals(logs, logged.size());
-        XCore.release();
 
         // Without the hook of Android 11 firing, newApplication installs them
         members.clear();
@@ -257,9 +175,7 @@ public class XCoreTest {
         fetched.clear();
         core.hookApplication("test.app", getClass().getClassLoader());
         assertEquals(hooks, members.size());
-        assertTrue(XCore.claim(backend("test")));
         callbacks.get(1).before(new XCall(members.get(1), null, new Object[]{null, "test.App", context}));
-        assertNull(System.getProperty("eu.faircode.xlua.engine"));
         assertEquals(Collections.singletonList(context), fetched);
 
         members.clear();
@@ -2061,72 +1977,22 @@ public class XCoreTest {
         assertTrue(logged.toString(), logged.toString().contains("Service not started"));
     }
 
-    private static XC_LoadPackage.LoadPackageParam loaded(String packageName, boolean first) {
-        XC_LoadPackage.LoadPackageParam param = new XC_LoadPackage.LoadPackageParam();
-        param.packageName = packageName;
-        param.classLoader = XCoreTest.class.getClassLoader();
-        param.isFirstApplication = first;
-        return param;
-    }
-
     private static void inSystemServer(boolean value) throws Exception {
         Field field = XLog.class.getDeclaredField("systemServer");
         field.setAccessible(true);
         field.setBoolean(null, value);
     }
 
-    // The legacy entry point hooks what the package it is given needs: system server, the settings provider, the first
-    // package of an app; not a package which an app loads for itself
-    @Test
-    public void legacyEntryHooksByPackage() throws Throwable {
-        XCore.release();
-        Field modern = XLua.class.getDeclaredField("modern");
-        modern.setAccessible(true);
-        Object before = modern.get(null);
-        modern.set(null, Boolean.FALSE);
-        try {
-            XLua entry = new XLua();
-            XposedBridge.hookedMembers.clear();
-            entry.handleLoadPackage(loaded("android", true));
-            assertEquals(ActivityManagerService.class.getMethod("systemReady", Runnable.class, Object.class),
-                    XposedBridge.hookedMembers.get(0));
-            assertEquals("legacy", System.getProperty("eu.faircode.xlua.engine"));
-
-            XposedBridge.hookedMembers.clear();
-            entry.handleLoadPackage(loaded(XCore.SETTINGS_PACKAGE, false));
-            assertEquals(Arrays.asList(
-                    SettingsProvider.class.getMethod("call", String.class, String.class, Bundle.class),
-                    SettingsProvider.class.getMethod("query", Uri.class, String[].class, String.class, String[].class,
-                            String.class)), XposedBridge.hookedMembers);
-
-            XposedBridge.hookedMembers.clear();
-            entry.handleLoadPackage(loaded("test.app", false));
-            assertTrue(XposedBridge.hookedMembers.isEmpty());
-            entry.handleLoadPackage(loaded("test.app", true));
-            assertEquals(NetworkSecurityConfigProvider.class.getDeclaredMethod("handleNewApplication", Context.class),
-                    XposedBridge.hookedMembers.get(0));
-            assertTrue(XposedBridge.hookedMembers.size() > 1);
-            for (Member member : XposedBridge.hookedMembers.subList(1, XposedBridge.hookedMembers.size()))
-                assertEquals("newApplication", member.getName());
-        } finally {
-            modern.set(null, before);
-            inSystemServer(false);
-            XCore.release();
-        }
-    }
-
     // The modern entry point hooks system server when it starts, and the settings provider, which is loaded into it, but
     // not an app, when it runs there
     @Test
     public void modernEntryHooksSystemServer() throws Throwable {
-        XCore.release();
         try {
             XLuaModule module = module(true);
             module.onSystemServerStarting((XposedModuleInterface.SystemServerStartingParam) Proxy.newProxyInstance(
                     getClass().getClassLoader(), new Class<?>[]{XposedModuleInterface.SystemServerStartingParam.class},
                     (proxy, m, args) -> ("getClassLoader".equals(m.getName()) ? getClass().getClassLoader() : null)));
             assertEquals(ActivityManagerService.class.getMethod("systemReady", Runnable.class, Object.class), hooked.get(0));
-            assertEquals("modern", System.getProperty("eu.faircode.xlua.engine"));
 
             hooked.clear();
             module.onPackageReady(ready(XCore.SETTINGS_PACKAGE, true));
@@ -2140,7 +2006,6 @@ public class XCoreTest {
             assertTrue(hooked.isEmpty());
         } finally {
             inSystemServer(false);
-            XCore.release();
         }
     }
 }

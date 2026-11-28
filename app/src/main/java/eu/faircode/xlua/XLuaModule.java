@@ -23,7 +23,6 @@ import android.os.Process;
 
 import androidx.annotation.NonNull;
 
-import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 
 // Entry point for the modern libxposed API (META-INF/xposed/java_init.list)
@@ -31,41 +30,21 @@ import io.github.libxposed.api.XposedModule;
 // The framework instantiates the module and attaches itself before onModuleLoaded.
 public class XLuaModule extends XposedModule {
     private boolean systemServer = false;
-    private ModernBackend backend = null;
     private XCore core = null;
-    private boolean claimed = false;
 
     @Override
     public void onModuleLoaded(@NonNull ModuleLoadedParam param) {
         systemServer = param.isSystemServer();
         if (systemServer)
             XLog.inSystemServer();
-        backend = new ModernBackend(this);
-        core = new XCore(backend);
+        core = new XCore(new ModernBackend(this));
         XCore.log("Loaded in " + param.getProcessName() + ":" + Process.myUid() +
                 " framework=" + getFrameworkName() + " " + getFrameworkVersion() + " api=" + getApiVersion());
     }
 
-    // Claimed right before the first hook, not when loaded: apps can read the claim until the hooks of the app are
-    // installed, and the AppComponentFactory of an app runs before onPackageReady. The entry point which claims first
-    // hooks, see XCore.claim.
-    private boolean claim() {
-        if (!claimed) {
-            if (!XCore.claim(backend)) {
-                // The legacy entry point of this module handles this process
-                core = null;
-                if (getApiVersion() >= XposedInterface.API_102)
-                    detach();
-                return false;
-            }
-            claimed = true;
-        }
-        return true;
-    }
-
     @Override
     public void onSystemServerStarting(@NonNull SystemServerStartingParam param) {
-        if (core == null || !claim())
+        if (core == null)
             return;
         try {
             core.hookAndroid(param.getClassLoader());
@@ -82,9 +61,9 @@ public class XLuaModule extends XposedModule {
         try {
             if (systemServer) {
                 // The settings provider is loaded into system server, which has the scope 'system'
-                if (XCore.SETTINGS_PACKAGE.equals(packageName) && claim())
+                if (XCore.SETTINGS_PACKAGE.equals(packageName))
                     core.hookSettings(param.getClassLoader());
-            } else if (XCore.isApp(packageName, param.isFirstPackage()) && claim())
+            } else if (XCore.isApp(packageName, param.isFirstPackage()))
                 core.hookApplication(packageName, param.getClassLoader());
         } catch (Throwable ex) {
             XCore.log(ex);

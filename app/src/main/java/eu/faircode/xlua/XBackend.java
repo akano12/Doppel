@@ -23,7 +23,7 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-// Hooking framework used by the engine: modern libxposed API or legacy XposedBridge API
+// Hooking framework used by the engine: the modern libxposed API
 interface XBackend {
     String getName();
 

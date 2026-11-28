@@ -97,9 +97,6 @@ class XCore {
     // The settings provider is loaded into system server
     static final String SETTINGS_PACKAGE = "com.android.providers.settings";
 
-    // System property shared by all class loaders of a process
-    private static final String PROP_ENGINE = "eu.faircode.xlua.engine";
-
     private static volatile XBackend backend = null;
     private static volatile int version = -1;
 
@@ -142,6 +139,7 @@ class XCore {
 
     XCore(XBackend backend) {
         XCore.backend = backend;
+        XLog.i(TAG, "Using " + backend.getName() + " API in " + Process.myPid());
     }
 
     // The hooks assigned to "android" apply to all of system server, but not to the service and the code of this
@@ -160,30 +158,6 @@ class XCore {
 
     static boolean inService() {
         return (serviceCalls.get()[0] > 0);
-    }
-
-    // A framework can load both the modern and the legacy entry point:
-    // only the first one to claim a process is allowed to hook
-    static boolean claim(XBackend backend) {
-        synchronized (System.class) {
-            String engine = System.getProperty(PROP_ENGINE);
-            if (engine == null) {
-                System.setProperty(PROP_ENGINE, backend.getName());
-                XLog.i(TAG, "Using " + backend.getName() + " API in " + Process.myPid());
-                return true;
-            }
-            return engine.equals(backend.getName());
-        }
-    }
-
-    // When the app-start hook fires, see hookApplication, once all entry points have claimed: apps can read the system
-    // properties, also apps without restrictions, which should get the answers of a device without Doppel. The app's
-    // AppComponentFactory and the threads it starts can read the property before that, for a few ms (4 to 12 ms on
-    // emulators)
-    static void release() {
-        synchronized (System.class) {
-            System.clearProperty(PROP_ENGINE);
-        }
     }
 
     // Packages loaded into another app's process (WebView, GMS, etc.) are handled by the host app
@@ -605,8 +579,8 @@ class XCore {
     }
 
     // First package of an app process
-    // shortcut: the app's own AppComponentFactory (Android 9 and later) is made, and makes the class loader, before both
-    // entry points run, so a Build field the factory copies keeps the real value; install the field hooks from the
+    // shortcut: the app's own AppComponentFactory (Android 9 and later) is made, and makes the class loader, before the
+    // entry point runs, so a Build field the factory copies keeps the real value; install the field hooks from the
     // modern API's onPackageLoaded (Android 10 and later only) once the assigned hooks can be got there without a context
     void hookApplication(final String packageName, ClassLoader classLoader) throws Throwable {
         final int uid = Process.myUid();
@@ -639,11 +613,10 @@ class XCore {
                     if (made)
                         return;
                     made = true;
-                    release();
 
-                    // Isolated processes (including app zygote) cannot access the provider; this is for legacy loaders
-                    // that inject there. LSPosed does not even load modules there, so an isolated service of the app
-                    // reads the real Build fields (README Limits).
+                    // Isolated processes (including app zygote) cannot access the provider; LSPosed does not load
+                    // modules there either, so an isolated service of the app reads the real Build fields
+                    // (README Limits).
                     if (Process.isIsolated()) {
                         XLog.i(TAG, "Skipping isolated " + packageName + ":" + uid);
                         return;

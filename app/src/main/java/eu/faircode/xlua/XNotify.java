@@ -228,9 +228,9 @@ final class XNotify {
     // and notifyRankingUpdateLocked run for each listener over all notifications under the lock of the notifications;
     // on API 33, 500 getActiveNotifications with 23 notifications took 211-234 µs deoptimized and 220-293 µs not,
     // within noise
-    // shortcut: not yet probed on Android 9 to 11, and a vendor build which R8 optimizes otherwise or a legacy framework
-    // without deoptimizeMethod still bypasses the hooks; probe a listener, an app with usage access and an
-    // accessibility service on Android 9 to 11
+    // shortcut: not yet probed on Android 9 to 11, and a vendor build which R8 optimizes otherwise or a framework
+    // whose deoptimization does not reach the callers still bypasses the hooks; probe a listener, an app with usage
+    // access and an accessibility service on Android 9 to 11
     // shortcut: an accessibility service can still read them in the shade and in the window where they pop up, a status
     // bar which a vendor does not register as system loses them, the rare notification of the settings provider itself
     // after a restore of the hotspot settings on Android 11 to 14 loses its usage events too, and a listener which guesses

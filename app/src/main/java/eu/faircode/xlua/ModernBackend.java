@@ -61,8 +61,7 @@ class ModernBackend implements XBackend {
 
                     callback.before(call);
 
-                    // Like legacy Xposed, a result set before skips the original method,
-                    // but the after callback is still called
+                    // A result set before skips the original method, but the after callback is still called
                     Throwable original = null;
                     if (!call.isReturnEarly()) {
                         Object result = null;

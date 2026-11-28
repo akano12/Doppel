@@ -730,11 +730,6 @@
     <string name="group_desc_use_camera">Using the camera, for pictures and video, and whether the device has one</string>
     <string name="group_desc_use_tracking">Device model, firmware, mobile operator and other data to recognize the device</string>
 
-    <string-array name="scopes" translatable="false">
-        <item>android</item>
-        <item>com.android.providers.settings</item>
-    </string-array>
-
     <string name="channel_alerts">Doppel new apps and errors</string>
     <string name="channel_usage">Doppel restrictions</string>
 

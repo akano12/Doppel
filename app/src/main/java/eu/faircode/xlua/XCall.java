@@ -22,7 +22,7 @@ package eu.faircode.xlua;
 import java.lang.reflect.Member;
 
 // Framework independent state of a hooked method call,
-// with the semantics of the legacy Xposed MethodHookParam
+// with before/after hook semantics
 public class XCall {
     public final Member method;
     public final Object thisObject;
